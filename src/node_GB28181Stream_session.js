@@ -130,7 +130,7 @@ class NodeGB28181StreamServerSession {
         }
     }
 
-    //获取PS 流-Nalus/audio/streaminfo
+    //解析 PS 获取Nalus video/audio/streaminfo
     static parseMpegPSPacket(buf, offset) {
 
         let position = offset || 0;
@@ -148,7 +148,7 @@ class NodeGB28181StreamServerSession {
         position += pack_stuffing_length;
 
         //System Header 0xbb
-        if (buf.readUInt32BE(position) == 0xbb) {
+        if (buf.readUInt32BE(position) == 0x01bb) {
             position += 4;
             //系统标题头长度
             let header_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
@@ -174,7 +174,7 @@ class NodeGB28181StreamServerSession {
             position += 2;
 
             //video 0xe0-0xef
-            if (Identifier >= 0xe0 && Identifier <= 0xef) {
+            if (Identifier >= 0x01e0 && Identifier <= 0x01ef) {
                 //PES packet header
                 let pes_header_length = buf.readUInt8(position + 2) + 3;
                 //视频数据
@@ -183,7 +183,7 @@ class NodeGB28181StreamServerSession {
             }
 
             //audio 0xc0-0xdf
-            if (Identifier >= 0xc0 && Identifier <= 0xdf) {
+            if (Identifier >= 0x01c0 && Identifier <= 0x01df) {
                 //PES packet header
                 let pes_header_length = buf.readUInt8(position + 2) + 3;
                 //音频数据
@@ -192,7 +192,7 @@ class NodeGB28181StreamServerSession {
             }
 
             //PSM 0xbc 解包判断音/视频编码 类型
-            if (Identifier == 0xbc) {
+            if (Identifier == 0x01bc) {
                 let program_stream_info_length = buf.readUInt16BE(position + 2);
                 let elementary_stream_map_length = buf.readUInt16BE(position + 4);
 

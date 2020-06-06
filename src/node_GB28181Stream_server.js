@@ -116,7 +116,9 @@ class NodeGB28181StreamServer {
                             psdatas.forEach((psdata) => {
                                 try {
                                     let packet = NodeRtpSession.parseMpegPSPacket(psdata);
-                                    context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), timestamp, packet);
+
+                                    if (packet.video.length > 0 )
+                                        context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), timestamp, packet);
                                 }
                                 catch (error) {
                                     Logger.log(`PS Packet Parse Fail.${error}`);
