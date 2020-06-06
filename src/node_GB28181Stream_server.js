@@ -23,12 +23,10 @@ class NodeGB28181StreamServer {
         this.udpPort = config.GB28181.streamServer.udpPort || 9200;
 
         this.udpServer = new RtpSession(this.udpPort);
-
         this.udpServer.createRtcpServer();
 
         //会话
         this.dialogs = {};
-
         //媒体发送者
         this.devices = {};
 
