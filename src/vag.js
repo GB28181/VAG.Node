@@ -15,12 +15,6 @@ const config = {
             password: '12345678'//默认密码
         },
         streamServer: {
-<<<<<<< HEAD
-=======
-            id: '34020000002017000001',
-            domain: '3402000000',
-            sipPort: 5062,
->>>>>>> 7b01cee7f9755aa4f066705f28e9487ee84f1f2d
             tcpPort: 9100,
             udpPort: 9200,
             host: '0.0.0.0',
