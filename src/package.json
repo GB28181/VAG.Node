@@ -1,0 +1,40 @@
+{
+  "name": "video-agent-gatewayy",
+  "version": "1.0.0",
+  "description": "A Node.js implementation of GB28181 Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yzxliu/vag.git"
+  },
+  "keywords": [
+    "gb28181",
+    "rtp",
+    "sip"
+  ],
+  "author": "Yzxliu",
+  "license": "MIT",
+  "bugs": {
+    "url": "http://www.baidu.com"
+  },
+  "homepage": "http://www.baidu.com",
+  "dependencies": {
+    "basic-auth-connect": "^1.0.0",
+    "chalk": "^2.4.1",
+    "dateformat": "^3.0.3",
+    "express": "^4.16.3",
+    "iconv-lite": "^0.5.1",
+    "lodash": "^4.17.10",
+    "rtp-rtcp": "0.0.2",
+    "sdp-transform": "^2.7.0",
+    "sip": "0.0.5",
+    "ws": "^5.1.1",
+    "xml2js": "^0.4.19"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  }
+}
