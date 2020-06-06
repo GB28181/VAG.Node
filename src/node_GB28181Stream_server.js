@@ -68,61 +68,84 @@ class NodeGB28181StreamServer {
 
             let session = this.rtpPackets.get(ssrc);
 
-            Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber}`);
+            Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
 
             switch (playloadType) {
                 //PS封装
                 case 96:
                     {
-                        //相同序号的分包数据,未考虑分包可能乱序的情况
-                        session.set(seqNumber, rtpPacket.getPayload());
 
-                        //缓存 100 帧
-                        if (session.size > 100) {
-                            let psdataCache = Buffer.alloc(0);
-
-                            for (var key of session.keys()) {
-                                psdataCache = Buffer.concat([psdataCache, session.get(key)]);
-                                session.delete(key);
-                            }
-
-                            let indexs = [];
-                            let psdatas = [];
-                            let position = 0;
-
-                            while (psdataCache.length - 4 > position) {
-                                //0x000000BA
-                                if (psdataCache.readUInt32BE(position) == 442) {
-                                    indexs.push(position);
-                                    position += 4;
-
-                                    if (indexs.length > 1) {
-                                        let psdata = psdataCache.slice(indexs[indexs.length - 2], indexs[indexs.length - 1]);
-                                        psdatas.push(psdata);
-                                    }
-                                }
-
-                                position++;
-                            }
-
-                            //最后一个位置后的数据无法判断PS包是否完整，塞回缓存
-                            if (indexs.length > 0) {
-                                let psdata = psdataCache.slice(indexs[indexs.length - 1]);
-                                session.set(seqNumber, psdata);
-                            }
-
-                            psdatas.forEach((psdata) => {
-                                try {
-                                    let packet = NodeRtpSession.parseMpegPSPacket(psdata);
-
-                                    if (packet.video.length > 0 )
-                                        context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), timestamp, packet);
-                                }
-                                catch (error) {
-                                    Logger.log(`PS Packet Parse Fail.${error}`);
-                                }
-                            })
+                        if (!session.has(timestamp)) {
+                            session.set(timestamp, rtpPacket.getPayload());
                         }
+                        else {
+                            session.set(timestamp, Buffer.concat([session.get(timestamp), rtpPacket.getPayload()]));
+                        }
+
+                        if (session.size > 1) {
+                            let entries = session.entries();
+                            let cache = entries.next().value;
+                            session.delete(cache[0]);
+                            try {
+                                let packet = NodeRtpSession.parseMpegPSPacket(cache[1]);
+                                if (packet.video.length > 0)
+                                    context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), cache[0], packet);
+                            }
+                            catch (error) {
+                                Logger.log(`PS Packet Parse Fail.${error}`);
+                            }
+                        }
+
+
+                        // //相同序号的分包数据,未考虑分包可能乱序的情况
+                        // session.set(seqNumber, rtpPacket.getPayload());
+
+                        // //缓存 100 帧
+                        // if (session.size > 100) {
+                        //     let psdataCache = Buffer.alloc(0);
+
+                        //     for (var key of session.keys()) {
+                        //         psdataCache = Buffer.concat([psdataCache, session.get(key)]);
+                        //         session.delete(key);
+                        //     }
+
+                        //     let indexs = [];
+                        //     let psdatas = [];
+                        //     let position = 0;
+
+                        //     while (psdataCache.length - 4 > position) {
+                        //         //0x000000BA
+                        //         if (psdataCache.readUInt32BE(position) == 442) {
+                        //             indexs.push(position);
+                        //             position += 4;
+
+                        //             if (indexs.length > 1) {
+                        //                 let psdata = psdataCache.slice(indexs[indexs.length - 2], indexs[indexs.length - 1]);
+                        //                 psdatas.push(psdata);
+                        //             }
+                        //         }
+
+                        //         position++;
+                        //     }
+
+                        //     //最后一个位置后的数据无法判断PS包是否完整，塞回缓存
+                        //     if (indexs.length > 0) {
+                        //         let psdata = psdataCache.slice(indexs[indexs.length - 1]);
+                        //         session.set(seqNumber, psdata);
+                        //     }
+
+                        //     psdatas.forEach((psdata) => {
+                        //         try {
+                        //             let packet = NodeRtpSession.parseMpegPSPacket(psdata);
+
+                        //             if (packet.video.length > 0 )
+                        //                 context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), timestamp, packet);
+                        //         }
+                        //         catch (error) {
+                        //             Logger.log(`PS Packet Parse Fail.${error}`);
+                        //         }
+                        //     })
+                        // }
                     }
                     break;
             }
@@ -178,7 +201,7 @@ class NodeGB28181StreamServer {
                         let pps = this.RtmpClients[ssrc]._pps;
 
                         if (vps && sps && pps) {
-                            let _packet = Buffer.concat([Buffer.from([0x1C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x5A, 0xF0, 0x01, 0xFC, 0xFD, 0xF8, 0xF8, 0x00, 0x00, 0x0F, 0x03, 0x20, 0x00, 0x01, vps.length >> 8 & 0xff, vps.length & 0xff]), vps, Buffer.from([0x21, 0x00, 0x01, sps.length >> 8 & 0xff, sps.length & 0xff]), sps, Buffer.from([0x22, 0x00, 0x01, pps.length >> 8 & 0xff, pps.length & 0xff]), pps]);
+                            let _packet = Buffer.concat([Buffer.from([0x1C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x5A, 0xF0, 0x01, 0xFC, 0xFD, 0xF8, 0xF8, 0x00, 0x00, 0x0F, 0x03, 0x20, 0x00, 0x01, vps.length >> 8 & 0xff, vps.length & 0xff]), vps, Buffer.from([0x21, 0x00, 0x01, sps.length >> 8 & 0xff, sps.length & 0xff]), sps, Buffer.from([0x22, 0x00, 0x01, pps.length >> 8 & 0xff, pps.length & 0xff]), pps]);
                             this.RtmpClients[ssrc].pushVideo(_packet, 0);
                             this.RtmpClients[ssrc].delta = 0;
                             this.RtmpClients[ssrc].sendfirstVideoPacket = true;
@@ -294,8 +317,6 @@ class NodeGB28181StreamServer {
     }
 
     stop() {
-
-        this.uac.destroy();
 
         this.tcpServer.close();
 

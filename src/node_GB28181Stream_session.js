@@ -135,64 +135,55 @@ class NodeGB28181StreamServerSession {
 
         let position = offset || 0;
 
-        if (buf.readUInt32BE(position) != 0x01ba)
-            throw new Error('PS包起始码 不是 0x000001BA');
-
-        //起始码（4）+系统时钟基准（6）+PS复用速率（4）
-        position += 13;
-
-        //填充头长度
-        let pack_stuffing_length = (buf.readUInt8(position) & 0x07);
-        position += 1;
-
-        position += pack_stuffing_length;
-
-        //System Header 0xbb
-        if (buf.readUInt32BE(position) == 0x01bb) {
-            position += 4;
-            //系统标题头长度
-            let header_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
-            position += 2;
-            position += header_length;
-        }
-
-        //PES-payload-nalus
-        let naluscache = Buffer.alloc(0);
-        //audio
-        let audiocache = Buffer.alloc(0);
-        //PSM
+        //PSM 编码信息
         let streaminfo = {};
+
+        //PES-video-payload-nalus
+        let naluscache = Buffer.alloc(0);
+
+        //PES-audio-payload
+        let audiocache = Buffer.alloc(0);
 
         //读取PES
         while (buf.length - 6 > position) {
+
             let Identifier = buf.readUInt32BE(position);
+
             position += 4;
 
-            //PES-length
-            let pes_packet_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
+            if (Identifier == 0x01ba) {
 
-            position += 2;
+                //系统时钟基准（6）+PS复用速率（4）
+                position += 9;
 
-            //video 0xe0-0xef
-            if (Identifier >= 0x01e0 && Identifier <= 0x01ef) {
-                //PES packet header
-                let pes_header_length = buf.readUInt8(position + 2) + 3;
-                //视频数据
-                let data = buf.slice(position + pes_header_length, position + pes_packet_length);
-                naluscache = Buffer.concat([naluscache, data]);
+                //填充头长度
+                let pack_stuffing_length = (buf.readUInt8(position) & 0x07);
+                position += 1;
+                position += pack_stuffing_length;
+
+                if (position > buf.length)
+                    break;
             }
 
-            //audio 0xc0-0xdf
-            if (Identifier >= 0x01c0 && Identifier <= 0x01df) {
-                //PES packet header
-                let pes_header_length = buf.readUInt8(position + 2) + 3;
-                //音频数据
-                let data = buf.slice(position + pes_header_length, position + pes_packet_length);
-                audiocache = Buffer.concat([audiocache, data]);
+            //System Header 0xbb
+            if (Identifier == 0x01bb) {
+   
+                //系统标题头长度
+                let header_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
+                position += 2;
+                position += header_length;
+
+                if (position > buf.length)
+                    break;
             }
 
             //PSM 0xbc 解包判断音/视频编码 类型
             if (Identifier == 0x01bc) {
+
+                //PES-length
+                let pes_packet_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
+                position += 2;
+
                 let program_stream_info_length = buf.readUInt16BE(position + 2);
                 let elementary_stream_map_length = buf.readUInt16BE(position + 4);
 
@@ -213,15 +204,56 @@ class NodeGB28181StreamServerSession {
 
                     start += elmentary_stream_info_length;
                 }
+
+                position += pes_packet_length;
+
+                if (position > buf.length)
+                    break;
             }
 
-            position += pes_packet_length;
+            if (Identifier >= 0x01e0 && Identifier <= 0x01ef) {
+
+                //PES-length
+                let pes_packet_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
+                position += 2;
+
+                //PES packet header
+                let pes_header_length = buf.readUInt8(position + 2) + 3;
+                //视频数据
+                let data = buf.slice(position + pes_header_length, position + pes_packet_length);
+
+                naluscache = Buffer.concat([naluscache, data]);
+
+                position += pes_packet_length;
+
+                if (position > buf.length)
+                    break;
+            }
+
+            if (Identifier >= 0x01c0 && Identifier <= 0x01df) {
+
+                //PES-length
+                let pes_packet_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
+                position += 2;
+
+                //PES packet header
+                let pes_header_length = buf.readUInt8(position + 2) + 3;
+                //音频数据
+                let data = buf.slice(position + pes_header_length, position + pes_packet_length);
+                audiocache = Buffer.concat([audiocache, data]);
+
+                position += pes_packet_length;
+
+                if (position > buf.length)
+                    break;
+            }
         }
 
-
+        //读取完毕分析nalus
         position = 0;
 
         let indexs = [];
+
         //视频Nalues
         let nalus = [];
 
