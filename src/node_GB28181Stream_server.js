@@ -1,8 +1,4 @@
-const dgram = require('dgram');
 const Net = require('net');
-const sip = require('sip');
-const sdp = require('sdp-transform');
-
 const Logger = require('./node_core_logger');
 const NodeRtpSession = require('./node_GB28181Stream_session');
 const context = require('./node_core_ctx');
@@ -15,12 +11,8 @@ const RtpPacket = require("rtp-rtcp").RtpPacket;
 //GB28181 媒体服务器
 class NodeGB28181StreamServer {
     constructor(config) {
-
-        //SIP 通信端口
-        this.port = config.GB28181.streamServer.sipPort || 5062;
         //TCP
         this.tcpPort = config.GB28181.streamServer.tcpPort || 9100;
-
         this.tcpServer = Net.createServer((socket) => {
             let session = new NodeRtpSession(config, socket);
             session.run();
@@ -31,188 +23,24 @@ class NodeGB28181StreamServer {
         this.udpPort = config.GB28181.streamServer.udpPort || 9200;
 
         this.udpServer = new RtpSession(this.udpPort);
+
         this.udpServer.createRtcpServer();
 
         //会话
         this.dialogs = {};
+
         //媒体发送者
         this.devices = {};
 
         this.rtpPackets = new Map();
-        this.seqNumbers = {};
 
         this.RtmpClients = {};
-        //RTMP服务器地址
+
+        //默认的RTMP服务器基地址
         this.rtmpServer = config.GB28181.streamServer.rtmpServer || 'rtmp://127.0.0.1/live';
     }
 
     run() {
-        //SIP Session 收到消息
-        this.uac = sip.create({ port: this.port, logger: Logger }, (request) => {
-
-            switch (request.method) {
-                //收到 Uas SIP服务器 invite
-                case 'INVITE':
-
-                    //判断UAS
-                    let uas = sip.parseUri(request.headers.from.uri);
-                    if (uas) {
-                        let deviceid = uas.user;//SIP 服务器国标编码
-
-                        //subject 媒体流发送者设备编码:发送方媒体序列号，媒体流接收者设备编码:接收端媒体流序列号
-                        let ssrc = '';
-                        let subjects = request.subject.split(',');
-                        if (subjects.length > 0) {
-                            let params = subjects[0].split(':');
-                            deviceid = params[0];
-                            ssrc = params[1];
-                        }
-
-                        //判断是否带SDP
-                        //Step 8 完成三方呼叫控制后，SIP 服务器通过B2BUA代理方式建立媒体流接收者和媒体服务器之间的媒体连接，在消息1中增加ssrc值，转发给媒体服务器
-                        if (request.content) {
-                            let res = sdp.parse(request.content);
-                            //Step 9 媒体服务器收到invite请求，回复200 OK响应，携带SDP消息体
-                            let content = `v=0\r\n` +
-                                `o=${res.origin.username} 0 0 IN IP4 ${this.host}\r\n` +
-                                `s=NodeMediaServer-GB28181\r\n` +
-                                `c=IN IP4 ${this.host}\r\n` +
-                                `t=0 0\r\n` +
-                                `m=video ${this.udpPort} RTP/AVP 96 98 97\r\n` +
-                                `m=video ${this.tcpPort} TCP/RTP/AVP 96 98 97\r\n` +
-                                `a=recvonly\r\n` +
-                                `a=rtpmap:96 PS/90000\r\n` +
-                                `a=rtpmap:97 MPEG4/90000\r\n` +
-                                `a=rtpmap:98 H264/90000\r\n` +
-                                `y=${res.y}`;
-
-                            let rs = sip.makeResponse(request, 200, 'OK', {
-                                headers: { 'content-type': 'Application/sdp' },
-                                content: content
-                            });
-                            rs.headers.to.params.tag = NodeSipSession.tagRandom(8);
-                            this.uac.send(rs);
-
-                            let session_8_9_12 = [request.headers['call-id'], request.headers.from.params.tag, rs.headers.to.params.tag].join(':');
-                            if (!this.dialogs[session_8_9_12]) {
-                                this.dialogs[session_8_9_12] = function (rq) {
-                                    //Step 12 转发 消息11 给媒体服务器，完成与媒体服务器的invite会话建立过程
-                                    if (rq.method === 'ACK') {
-                                        //向媒体流接收者发送数据
-
-                                    }
-
-                                    //Step 15 向媒体服务器发送 BYE 消息，断开消息8，9，12建立的invite会话
-                                    if (rq.method === 'BYE') {
-                                        delete this.dialogs[session_8_9_12];
-                                        //停止发送数据
-                                    }
-                                }
-                            }
-                        }
-                        else {
-                            if (!this.devices[deviceid]) {
-
-                                let rtmpclient = new NodeRtmpClient(`${this.rtmpServer}/${deviceid}`);
-                                rtmpclient.startPush();
-
-                                //RTMP publish start
-                                rtmpclient.on('status', (info) => {
-                                    if (info.code === 'NetStream.Publish.Start') {
-                                        rtmpclient.isPublishStart = true;
-                                    }
-                                });
-
-                                //RTMP连接关闭
-                                rtmpclient.on('close', () => {
-                                    //重连？或发 bye 
-                                });
-
-                                //收到媒体发送者 TCP/UDP 发送的数据
-                                this.devices[deviceid] = function (data, type) {
-                                    //往RTMP流服务器推送
-                                    if (rtmpclient.isPublishStart) {
-                                        switch (type) {
-                                            case 'audio':
-                                                rtmpclient.writeAudioFrame(data);
-                                                break;
-                                            case 'video':
-                                                rtmpclient.writeVideoFrame(data);
-                                                break;
-                                        }
-                                    }
-                                }
-
-                                //Step 2 SIP invite
-                                let sdp = `v=0\r\n` +
-                                    `o=${deviceid} 0 0 IN IP4 ${this.host}\r\n` +
-                                    `s=NodeMediaServer-GB28181\r\n` +
-                                    `c=IN IP4 ${this.host}\r\n` +
-                                    `t=0 0\r\n` +
-                                    `m=video ${this.udpPort} RTP/AVP 96 98 97\r\n` +
-                                    `m=video ${this.tcpPort} TCP/RTP/AVP 96 98 97\r\n` +
-                                    `a=recvonly\r\n` +
-                                    `a=rtpmap:96 PS/90000\r\n` +
-                                    `a=rtpmap:97 MPEG4/90000\r\n` +
-                                    `a=rtpmap:98 H264/90000\r\n`;
-
-                                //Step 3 媒体服务器收到SIP服务器invite请求后，回复200 OK响应，携带SDP消息体，消息体中描述了媒体服务器接收媒体流的IP，端口，媒体格式等内容
-                                let rs = sip.makeResponse(request, 200, 'OK', {
-                                    headers: { 'content-type': 'Application/sdp' },
-                                    content: sdp
-                                });
-
-                                rs.headers.to.params.tag = NodeSipSession.tagRandom(8);
-                                this.uac.send(rs);
-
-                                //记录会话标识
-                                let session_2_3_6 = [request.headers['call-id'], request.headers.from.params.tag, rs.headers.to.params.tag].join(':');
-
-                                if (!this.dialogs[session_2_3_6]) {
-                                    this.dialogs[session_2_3_6] = function (rq) {
-                                        //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向媒体服务器发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
-                                        if (rq.method === 'ACK') {
-                                            //ACK 媒体发送者SDP 相关信息，开始接收媒体流发送者 推流                                        
-
-                                            //关联deviceid-ssrc                                           
-                                        }
-
-                                        //Step 17 SIP服务器向媒体服务器发送BYE消息
-                                        if (rq.method === 'BYE') {
-                                            delete this.dialogs[session_2_3_6];
-                                            //停止接收数据
-                                            delete this.devices[deviceid];
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // this.uac.send(sip.makeResponse(request, 100, 'Trying'));
-
-                    break;
-                case 'ACK':
-                case 'BYE':
-                    try {
-                        let callid = [request.headers['call-id'], request.from.params.tag, request.headers.to.params.tag].join(':');
-                        if (this.dialogs[callid]) {
-                            this.dialogs[callid](request);
-                        } else {
-                            this.uas.send(sip.makeResponse(request, 481, "Call doesn't exists"));
-                        }
-                    }
-                    catch (e) {
-                        this.uac.send(sip.makeResponse(request, 405, 'Method not allowed'));
-                    }
-                    break;
-                default:
-                    this.uac.send(sip.makeResponse(request, 405, 'Method not allowed'));
-                    break;
-            }
-        });
-
-        Logger.log(`Node Media GB28181-Stream/SIP Client started on port: ${this.port}`);
-
         //TCP
         this.tcpServer.listen(this.tcpPort, () => {
             Logger.log(`Node Media GB28181-Stream/TCP Server started on port: ${this.tcpPort}`);
