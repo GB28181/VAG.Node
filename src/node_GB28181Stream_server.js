@@ -82,70 +82,25 @@ class NodeGB28181StreamServer {
                             session.set(timestamp, Buffer.concat([session.get(timestamp), rtpPacket.getPayload()]));
                         }
 
+                        //等待下一帧 收到，处理上一帧
                         if (session.size > 1) {
-                            let entries = session.entries();
-                            let cache = entries.next().value;
-                            session.delete(cache[0]);
+
+                            let entries = session.entries()
+
+                            let first = entries.next().value;
+                            let second = entries.next().value;
+
+                            session.delete(first[0]);
+
                             try {
-                                let packet = NodeRtpSession.parseMpegPSPacket(cache[1]);
+                                let packet = NodeRtpSession.parseMpegPSPacket(first[1]);
                                 if (packet.video.length > 0)
-                                    context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), cache[0], packet);
+                                    context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
                             }
                             catch (error) {
                                 Logger.log(`PS Packet Parse Fail.${error}`);
                             }
                         }
-
-
-                        // //相同序号的分包数据,未考虑分包可能乱序的情况
-                        // session.set(seqNumber, rtpPacket.getPayload());
-
-                        // //缓存 100 帧
-                        // if (session.size > 100) {
-                        //     let psdataCache = Buffer.alloc(0);
-
-                        //     for (var key of session.keys()) {
-                        //         psdataCache = Buffer.concat([psdataCache, session.get(key)]);
-                        //         session.delete(key);
-                        //     }
-
-                        //     let indexs = [];
-                        //     let psdatas = [];
-                        //     let position = 0;
-
-                        //     while (psdataCache.length - 4 > position) {
-                        //         //0x000000BA
-                        //         if (psdataCache.readUInt32BE(position) == 442) {
-                        //             indexs.push(position);
-                        //             position += 4;
-
-                        //             if (indexs.length > 1) {
-                        //                 let psdata = psdataCache.slice(indexs[indexs.length - 2], indexs[indexs.length - 1]);
-                        //                 psdatas.push(psdata);
-                        //             }
-                        //         }
-
-                        //         position++;
-                        //     }
-
-                        //     //最后一个位置后的数据无法判断PS包是否完整，塞回缓存
-                        //     if (indexs.length > 0) {
-                        //         let psdata = psdataCache.slice(indexs[indexs.length - 1]);
-                        //         session.set(seqNumber, psdata);
-                        //     }
-
-                        //     psdatas.forEach((psdata) => {
-                        //         try {
-                        //             let packet = NodeRtpSession.parseMpegPSPacket(psdata);
-
-                        //             if (packet.video.length > 0 )
-                        //                 context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), timestamp, packet);
-                        //         }
-                        //         catch (error) {
-                        //             Logger.log(`PS Packet Parse Fail.${error}`);
-                        //         }
-                        //     })
-                        // }
                     }
                     break;
             }
@@ -185,80 +140,127 @@ class NodeGB28181StreamServer {
             });
         }
 
+        let rtmpClinet = this.RtmpClients[ssrc];
+
         //记录收包时间，长时间未收包关闭会话
-        this.RtmpClients[ssrc]._lastReceiveTime = new Date();
+        rtmpClinet._lastReceiveTime = new Date();
 
         //发送视频第一包
-        if (!this.RtmpClients[ssrc].sendfirstVideoPacket && this.RtmpClients[ssrc].isPublishStart) {
+        if (!rtmpClinet.sendfirstVideoPacket && rtmpClinet.isPublishStart) {
 
-            let streaminfo = this.RtmpClients[ssrc]._streaminfo;
+            let streaminfo = rtmpClinet._streaminfo;
 
             switch (streaminfo.video) {
-                case 36:
+                case 0x24:
                     {
-                        let vps = this.RtmpClients[ssrc]._vps;
-                        let sps = this.RtmpClients[ssrc]._sps;
-                        let pps = this.RtmpClients[ssrc]._pps;
+                        let vps = rtmpClinet._vps;
+                        let sps = rtmpClinet._sps;
+                        let pps = rtmpClinet._pps;
 
                         if (vps && sps && pps) {
                             let _packet = Buffer.concat([Buffer.from([0x1C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x5A, 0xF0, 0x01, 0xFC, 0xFD, 0xF8, 0xF8, 0x00, 0x00, 0x0F, 0x03, 0x20, 0x00, 0x01, vps.length >> 8 & 0xff, vps.length & 0xff]), vps, Buffer.from([0x21, 0x00, 0x01, sps.length >> 8 & 0xff, sps.length & 0xff]), sps, Buffer.from([0x22, 0x00, 0x01, pps.length >> 8 & 0xff, pps.length & 0xff]), pps]);
-                            this.RtmpClients[ssrc].pushVideo(_packet, 0);
-                            this.RtmpClients[ssrc].delta = 0;
-                            this.RtmpClients[ssrc].sendfirstVideoPacket = true;
+                            rtmpClinet.pushVideo(_packet, 0);
+                            rtmpClinet.deltaVideo = 0;
+                            rtmpClinet.sendfirstVideoPacket = true;
                         }
                     }
                     break;
-                case 27:
+                case 0x1b:
                     {
-                        let sps = this.RtmpClients[ssrc]._sps;
-                        let pps = this.RtmpClients[ssrc]._pps;
+                        let sps = rtmpClinet._sps;
+                        let pps = rtmpClinet._pps;
 
                         if (sps && pps) {
                             let _packet = Buffer.concat([Buffer.from([0x17, 0x00, 0x00, 0x00, 0x00, 0x01, sps.readUInt8(1), sps.readUInt8(2), sps.readUInt8(3), 0xff, 0xe1, sps.length >> 8 & 0xff, sps.length & 0xff]), sps, Buffer.from([0x01, pps.length >> 8 & 0xff, pps.length & 0xff]), pps]);
-                            this.RtmpClients[ssrc].pushVideo(_packet, 0);
-                            this.RtmpClients[ssrc].delta = 0;
-                            this.RtmpClients[ssrc].sendfirstVideoPacket = true;
+                            rtmpClinet.pushVideo(_packet, 0);
+                            rtmpClinet.deltaVideo = 0;
+                            rtmpClinet.sendfirstVideoPacket = true;
                         }
                     }
                     break;
             }
         }
 
+        //发送音频第一包
+        if (!rtmpClinet.sendfirstAudioPacket && rtmpClinet.isPublishStart) {
+
+            let streaminfo = rtmpClinet._streaminfo;
+
+            switch (streaminfo.audio) {
+                //AAC
+                case 0x0f:
+                    break;
+                //SVAC
+                case 0x9b:
+                    break;
+                //PCM
+                case 0x8b:
+                    break;
+                //G711a
+                case 0x90:
+                    {
+                        var _packet = Buffer.from([0x70]);
+                        rtmpClinet.pushAudio(_packet, 0);
+                        rtmpClinet.deltaAudio = 0;
+                        rtmpClinet.sendfirstAudioPacket = true;
+                    }
+                    break;
+                //G711u
+                case 0x91:
+                    {
+                        var _packet = Buffer.from([0x80]);
+                        rtmpClinet.pushAudio(_packet, 0);
+                        rtmpClinet.deltaAudio = 0;
+                        rtmpClinet.sendfirstAudioPacket = true;
+                    }
+                    break;
+                //G722
+                case 0x92:
+                    break;
+                //G723
+                case 0x93:
+                    break;
+                //G729
+                case 0x99:
+                    break;
+            }
+        }
+
         //判断packet.streaminfo H264/H265
 
-        if (!this.RtmpClients[ssrc]._streaminfo && packet.streaminfo)
-            this.RtmpClients[ssrc]._streaminfo = packet.streaminfo;
+        if (!rtmpClinet._streaminfo && packet.streaminfo)
+            rtmpClinet._streaminfo = packet.streaminfo;
 
-        if (!this.RtmpClients[ssrc]._streaminfo.video && packet.streaminfo.video)
-            this.RtmpClients[ssrc]._streaminfo.video = packet.streaminfo.video;
+        if (!rtmpClinet._streaminfo.video && packet.streaminfo.video)
+            rtmpClinet._streaminfo.video = packet.streaminfo.video;
 
-        if (!this.RtmpClients[ssrc]._streaminfo.audio && packet.streaminfo.audio)
-            this.RtmpClients[ssrc]._streaminfo.audio = packet.streaminfo.audio;
+        if (!rtmpClinet._streaminfo.audio && packet.streaminfo.audio)
+            rtmpClinet._streaminfo.audio = packet.streaminfo.audio;
 
         //发送视频
         packet.video.forEach(nalu => {
 
-            switch (this.RtmpClients[ssrc]._streaminfo.video) {
+            switch (rtmpClinet._streaminfo.video) {
                 //H265
-                case 36:
+                case 0x24:
                     {
                         let naluType = (nalu.readUInt8(0) & 0x7E) >> 1;
 
                         switch (naluType) {
                             case 19:
-                                this.RtmpClients[ssrc]._keyframe = nalu;
+                                rtmpClinet._keyframe = nalu;
                                 break;
                             case 32:
-                                if (!this.RtmpClients[ssrc]._vps)
-                                    this.RtmpClients[ssrc]._vps = nalu;
+                                if (!rtmpClinet._vps)
+                                    rtmpClinet._vps = nalu;
                                 break;
                             case 33:
-                                if (!this.RtmpClients[ssrc]._sps)
-                                    this.RtmpClients[ssrc]._sps = nalu;
+                                if (!rtmpClinet._sps)
+                                    rtmpClinet._sps = nalu;
                                 break;
                             case 34:
-                                if (!this.RtmpClients[ssrc]._pps)
-                                    this.RtmpClients[ssrc]._pps = nalu;
+                                if (!rtmpClinet._pps)
+                                    rtmpClinet._pps = nalu;
                                 break;
                         }
 
@@ -267,29 +269,29 @@ class NodeGB28181StreamServer {
 
                             let packet = Buffer.concat([Buffer.from([naluType == 19 ? 0x1C : 0x2C, 0x01, 0x00, 0x00, 0x00, (nalu.length >> 24 & 0xff), (nalu.length >> 16 & 0xff), (nalu.length >> 8 & 0xff), (nalu.length & 0xff)]), nalu]);
 
-                            this.RtmpClients[ssrc].delta += 40;
+                            rtmpClinet.deltaVideo += timestamp / 90;
 
-                            if (this.RtmpClients[ssrc].isPublishStart && this.RtmpClients[ssrc].sendfirstVideoPacket)
-                                this.RtmpClients[ssrc].pushVideo(packet, this.RtmpClients[ssrc].delta);
+                            if (rtmpClinet.isPublishStart && rtmpClinet.sendfirstVideoPacket)
+                                rtmpClinet.pushVideo(packet, rtmpClinet.deltaVideo);
                         }
                     }
                     break;
                 //H264
-                case 27:
+                case 0x1b:
                     {
                         let naluType = nalu.readUInt8(0) & 0x1F;
 
                         switch (naluType) {
                             case 5:
-                                this.RtmpClients[ssrc]._keyframe = nalu;
+                                rtmpClinet._keyframe = nalu;
                                 break;
                             case 7:
-                                if (!this.RtmpClients[ssrc]._sps)
-                                    this.RtmpClients[ssrc]._sps = nalu;
+                                if (!rtmpClinet._sps)
+                                    rtmpClinet._sps = nalu;
                                 break;
                             case 8:
-                                if (!this.RtmpClients[ssrc]._pps)
-                                    this.RtmpClients[ssrc]._pps = nalu;
+                                if (!rtmpClinet._pps)
+                                    rtmpClinet._pps = nalu;
                                 break;
                         }
 
@@ -298,20 +300,39 @@ class NodeGB28181StreamServer {
 
                             let packet = Buffer.concat([Buffer.from([naluType == 5 ? 0x17 : 0x27, 0x01, 0x00, 0x00, 0x00, (nalu.length >> 24 & 0xff), (nalu.length >> 16 & 0xff), (nalu.length >> 8 & 0xff), (nalu.length & 0xff)]), nalu]);
 
-                            this.RtmpClients[ssrc].delta += 40;
+                            rtmpClinet.deltaVideo += timestamp / 90;
 
-                            if (this.RtmpClients[ssrc].isPublishStart && this.RtmpClients[ssrc].sendfirstVideoPacket)
-                                this.RtmpClients[ssrc].pushVideo(packet, this.RtmpClients[ssrc].delta);
+                            if (rtmpClinet.isPublishStart && rtmpClinet.sendfirstVideoPacket)
+                                rtmpClinet.pushVideo(packet, rtmpClinet.deltaVideo);
                         }
                     }
+                    break;
+                //SVAC
+                case 0x80:
                     break;
             }
         });
 
         //发送音频
         if (packet.audio.length > 0) {
-            if (this.RtmpClients[ssrc].isPublishStart && this.RtmpClients[ssrc].sendfirstAudioPacket) {
-                this.RtmpClients[ssrc].pushAudio(packet.audio, timestamp);
+            if (rtmpClinet.isPublishStart && rtmpClinet.sendfirstAudioPacket) {
+
+                switch (rtmpClinet._streaminfo.audio) {
+                    //G711a
+                    case 0x90:
+                        {
+                            rtmpClinet.deltaAudio += (packet.audio.length / 8000) * 1000;
+                            rtmpClinet.pushAudio(Buffer.concat([Buffer.from([0x70]), packet.audio]), rtmpClinet.deltaAudio);
+                        }
+                        break;
+                    //G711u
+                    case 0x91:
+                        {
+                            rtmpClinet.deltaAudio += (packet.audio.length / 8000) * 1000;
+                            rtmpClinet.pushAudio(Buffer.concat([Buffer.from([0x80]), packet.audio]), rtmpClinet.deltaAudio);
+                        }
+                        break;
+                }
             }
         }
     }
