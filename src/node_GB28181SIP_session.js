@@ -321,9 +321,7 @@ class NodeSipSession {
     //预览 channelid 通道国标编码
     RealPlay(channelid, rhost, rport) {
 
-        let deviceid = channelid || this.id;
-
-        let ssrc = "0" + deviceid.substring(16, 20) + deviceid.substring(3, 8);
+        let ssrc = "0" + channelid.substring(16, 20) + channelid.substring(3, 8);
 
         let host = rhost || "127.0.0.1";
         let port = rport || 9200;
@@ -342,13 +340,15 @@ class NodeSipSession {
 
         //s=Play/Playback/Download/Talk
         let content = `v=0\r\n` +
-            `o=${deviceid} 0 0 IN IP4 ${host}\r\n` +
+            `o=${channelid} 0 0 IN IP4 ${host}\r\n` +
             `s=Play\r\n` +
             `c=IN IP4 ${host}\r\n` +
             `t=0 0\r\n` +
-            `m=video ${port} RTP/AVP 96\r\n` +
+            `m=video ${port} TCP/RTP/AVP 96\r\n` +
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
+            `a=setup:passive\r\n` +
+            `a=connection:new\r\n` +
             `y=${ssrc}\r\n`;
 
         let that = this;
@@ -424,23 +424,6 @@ class NodeSipSession {
         }
     }
 
-    //关闭会话 callid-fromtag-totag 会话标识
-    Bye(callid, fromtag, totag) {
-        this.uas.send({
-            method: options.method,
-            uri: 'sip:' + this.id + '@' + this.via.host + ':' + this.via.port,
-            headers: {
-                to: { uri: 'sip:' + this.id + '@' + this.config.sip.domain, params: { tag: totag } },
-                from: { uri: 'sip:' + this.config.sip.id + '@' + this.config.sip.domain, params: { tag: fromtag } },
-                'call-id': callid,
-                cseq: { method: 'BYE', seq: Math.floor(Math.random() * 1e5) },
-                contact: [{ uri: 'sip:' + this.config.sip.id + '@' + os.hostname() + ":" + this.config.sip.port }]
-            }
-        }, rs => {
-            console.log('call progress status ' + rs.status);
-        });
-    }
-
     //处理 MESSAGE 
     onMessage(request) {
         let via = request.headers.via[0];
@@ -474,44 +457,36 @@ class NodeSipSession {
         this.uas.send(sip.makeResponse(request, 200, 'Ok'));
     }
 
-    //关闭
-    onBye(request) {
-        var sessionid = [request.headers['call-id'], request.headers.to.params.tag, request.headers.from.params.tag].join(':');
-        if (this.dialogs[sessionid]) {
-            this.dialogs[sessionid](request);
-        }
-        else {
-            this.uas.send(sip.makeResponse(request, 481, "Call doesn't exists"));
-        }
-    }
-
     //发送SIP消息
     send(options) {
         //设备国标编码+设备主机地址+通讯端口
         let uri = 'sip:' + this.id + '@' + this.via.host + ':' + this.via.port;
-        this.uas.send({
+
+        let request = {
             method: options.method,
             uri: uri,
             headers: {
-                to: { uri: 'sip:' + this.id + '@' + this.config.GB28181.sipServer.domain },
-                from: { uri: 'sip:' + this.config.GB28181.sipServer.id + '@' + this.config.GB28181.sipServer.domain, params: { tag: NodeSipSession.rstring() } },
-                'call-id': NodeSipSession.rstring(),
+                to: { uri: 'sip:' + this.id + '@' + this.config.GB28181.sipServer.realm },
+                from: { uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + this.config.GB28181.sipServer.realm, params: { tag: options.tag || this.getTagRandom(8) } },
+                'call-id': this.getCallId(),
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
                 'content-type': options.contentType,
                 subject: options.subject,
-                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.id + '@' + os.hostname() + ":" + this.config.GB28181.sipServer.port }]
+                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + os.hostname() + ":" + this.config.GB28181.sipServer.listen }]
             },
             content: options.content
-        }, options.callback);
+        }
+
+        this.uas.send(request, options.callback);
     }
 
-    //随机数
-    static rstring() {
-        return Math.floor(Math.random() * 1e6).toString();
+    //
+    getCallId() {
+        return Math.floor(Math.random() * 1e6).toString() + '@' + this.config.GB28181.sipServer.mapHost || "127.0.0.1";
     }
 
-    //tag num
-    static tagRandom(size) {
+    //
+    getTagRandom(size) {
         let seed = new Array('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'm', 'n', 'p', 'Q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
             '2', '3', '4', '5', '6', '7', '8', '9'
@@ -519,7 +494,7 @@ class NodeSipSession {
         let seedlength = seed.length;//数组长度
         let num = '';
         for (let i = 0; i < size; i++) {
-            j = Math.floor(Math.random() * seedlength);
+            let j = Math.floor(Math.random() * seedlength);
             num += seed[j];
         }
         return num;

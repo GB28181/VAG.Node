@@ -26,6 +26,7 @@ class NodeGB28181StreamServerSession {
         this.socket.on('timeout', this.onSocketTimeout.bind(this));
 
         this.isStarting = true;
+
         this.connectTime = new Date();
 
         this.connectCmdObj = { ip: this.ip };
@@ -62,72 +63,14 @@ class NodeGB28181StreamServerSession {
     onSocketData(data) {
         this.parserBuffer = Buffer.concat([this.parserBuffer, data]);
         //国标28181的tcp码流标准遵循的是RFC4571标准
-
         //RFC2326标准格式： $+长度+RTP头+数据
         //RFC4571标准格式: 长度+RTP头+数据
 
-        let index = this.parserBuffer.indexOf("$");
 
-        if (index != -1) {
-            let channel = this.parserBuffer.readUInt8(index);
-            let rtplength = this.parserBuffer.readUInt16BE(index + 1);
 
-            if (this.parserBuffer.length < index + 3 + rtplength) {
-                return;
-            }
+        let rtplength = this.parserBuffer.readUInt16BE(0);
 
-            let rtpBuf = Buffer.alloc(rtplength);
-            this.parserBuffer.copy(rtpBuf, 0, index + 3, index + 3 + rtplength);
-            //跳过
-            this.parserBuffer = this.parserBuffer.slice(index + 3 + rtplength);
-
-            let rtppacket = NodeGB28181StreamServerSession.parseRtpPacket(rtpBuf);
-
-            if (sessions.size == 0) {
-                this.first = rtppacket.sequenceNumber;
-            }
-
-            rtpPackets.set(rtppacket.sequenceNumber, rtppacket);
-
-            if (rtpPackets.has(rtppacket.sequenceNumber - 1)) {
-                let last = rtpPackets.get(rtppacket.sequenceNumber - 1);
-                if (last.timestamp != rtppacket.timestamp) {
-                    let first = this.first;
-                    this.first = rtppacket.sequenceNumber;
-
-                    switch (last.payloadType) {
-                        //PS
-                        case 96:
-                            let psdata = Buffer.alloc(0);
-                            let lost = false;
-                            while (first <= last.sequenceNumber) {
-                                if (rtpPackets.has(first)) {
-                                    psdata = Buffer.concat([psdata, rtpPackets.get(first).payload]);
-                                    rtpPackets.delete(first);
-                                }
-                                else {
-                                    lost = true;
-                                    Logger.log(`lost frame timestamp:${timestamp}`);
-                                    break;
-                                }
-                                first++;
-                            }
-
-                            if (!lost) {
-                                let packet = NodeGB28181StreamServerSession.parseMpegPSPacket(psdata);
-                                context.nodeEvent.emit('rtpReceived', last.ssrc, last.timestamp, packet);
-                            }
-                            break;
-                        //TS
-                        case 97:
-                            break;
-                        //H264
-                        case 98:
-                            break;
-                    }
-                }
-            }
-        }
+        Logger.log(`TCP Connect ,Data-Length:${data.length} ,RTPPack-Length:${rtplength}`);
     }
 
     //解析 PS 获取Nalus video/audio/streaminfo
@@ -167,7 +110,7 @@ class NodeGB28181StreamServerSession {
 
             //System Header 0xbb
             if (Identifier == 0x01bb) {
-   
+
                 //系统标题头长度
                 let header_length = (buf.readUInt8(position) << 8 | buf.readUInt8(position + 1));
                 position += 2;
@@ -196,10 +139,10 @@ class NodeGB28181StreamServerSession {
                     let elementary_stream_id = buf.readUInt8(position + start++);
                     let elmentary_stream_info_length = buf.readUInt8(position + start++) << 8 | buf.readUInt8(position + start++);
 
-                    if (elementary_stream_id >= 0xc0 && elementary_stream_id <= 0xdf)
+                    if (elementary_stream_id == 0xc0)
                         streaminfo.audio = stream_type;
 
-                    if (elementary_stream_id >= 0xe0 && elementary_stream_id <= 0xef)
+                    if (elementary_stream_id == 0xe0)
                         streaminfo.video = stream_type;
 
                     start += elmentary_stream_info_length;

@@ -11,18 +11,16 @@ const RtpPacket = require("rtp-rtcp").RtpPacket;
 //GB28181 媒体服务器
 class NodeGB28181StreamServer {
     constructor(config) {
-        //TCP
-        this.tcpPort = config.GB28181.streamServer.tcpPort || 9100;
+        this.listen = config.GB28181.streamServer.listen || 9200;
+        this.host = config.GB28181.streamServer.host || '0.0.0.0';
+
         this.tcpServer = Net.createServer((socket) => {
             let session = new NodeRtpSession(config, socket);
             session.run();
         });
 
-        this.host = config.GB28181.streamServer.host || '0.0.0.0';
-        //UDP
-        this.udpPort = config.GB28181.streamServer.udpPort || 9200;
 
-        this.udpServer = new RtpSession(this.udpPort);
+        this.udpServer = new RtpSession(this.listen);
         this.udpServer.createRtcpServer();
 
         //会话
@@ -40,8 +38,8 @@ class NodeGB28181StreamServer {
 
     run() {
         //TCP
-        this.tcpServer.listen(this.tcpPort, () => {
-            Logger.log(`Node Media GB28181-Stream/TCP Server started on port: ${this.tcpPort}`);
+        this.tcpServer.listen(this.listen, () => {
+            Logger.log(`Node Media GB28181-Stream/TCP Server started on port: ${this.listen}`);
         });
         this.tcpServer.on('error', (e) => {
             Logger.error(`Node Media GB28181-Stream/TCP Server ${e}`);
@@ -52,7 +50,7 @@ class NodeGB28181StreamServer {
 
         //UDP
         this.udpServer.on("listening", () => {
-            Logger.log(`Node Media GB28181-Stream/UDP Server started on port: ${this.udpPort}`);
+            Logger.log(`Node Media GB28181-Stream/UDP Server started on port: ${this.listen}`);
         });
 
         this.udpServer.on("message", (msg, info) => {

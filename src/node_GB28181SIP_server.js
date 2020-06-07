@@ -9,9 +9,10 @@ const NodeSipSession = require('./node_GB28181SIP_session');
 //GB28181 SIP服务器
 class NodeSIPServer {
     constructor(config) {
-        this.port = config.GB28181.sipServer.port || 5060;
+        this.listen = config.GB28181.sipServer.listen || 5060;
         this.defaultPassword = config.GB28181.sipServer.password || '12345678';
         this.config = config;
+        //临时用户信息
         this.userinfo = {};
         //会话
         this.dialogs = {};
@@ -20,7 +21,7 @@ class NodeSIPServer {
     run() {
 
         //监听端口，接收消息
-        this.uas = sip.create({ port: this.port, logger: Logger }, (request) => {
+        this.uas = sip.create({ port: this.listen, logger: Logger }, (request) => {
             switch (request.method) {
                 //当前域 注册/注销 REGISTER
                 case 'REGISTER':
@@ -61,7 +62,7 @@ class NodeSIPServer {
             }
         });
 
-        Logger.log(`Node Media GB28181 Sip-Server started on port: ${this.port}`);
+        Logger.log(`Node Media GB28181 Sip-Server started on port: ${this.listen}`);
     }
 
     stop() {
@@ -77,7 +78,7 @@ class NodeSIPServer {
 
         //会话标识
         if (!this.userinfo[userid])
-            this.userinfo[userid] = { realm: this.config.GB28181.sipServer.domain };
+            this.userinfo[userid] = { realm: this.config.GB28181.sipServer.realm || "3402000000" };
 
         //判断是否携带鉴权字段
         if (!request.headers.authorization || !digest.authenticateRequest(this.userinfo[userid], request, { user: userid, password: this.defaultPassword })) {
