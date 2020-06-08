@@ -19,10 +19,11 @@ class NodeGB28181StreamServer {
             session.run();
         });
 
-
-        this.udpServer = new RtpSession(this.listen);
-        this.udpServer.createRtcpServer();
-
+        if (config.GB28181.streamServer.invite_port_fixed) {
+            this.udpServer = new RtpSession(this.listen);
+            this.udpServer.createRtcpServer();
+        }
+        
         //会话
         this.dialogs = {};
         //媒体发送者
@@ -66,7 +67,7 @@ class NodeGB28181StreamServer {
 
             let session = this.rtpPackets.get(ssrc);
 
-            Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
+            Logger.log(`UDP RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
 
             switch (playloadType) {
                 //PS封装
@@ -102,8 +103,6 @@ class NodeGB28181StreamServer {
                     }
                     break;
             }
-
-
         });
 
         //收到RTP 包

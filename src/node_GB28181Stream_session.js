@@ -2,8 +2,7 @@
 const NodeCoreUtils = require('./node_core_utils');
 const context = require('./node_core_ctx');
 const Logger = require('./node_core_logger');
-
-const rtpPackets = new Map();
+const RtpPacket = require("rtp-rtcp").RtpPacket;
 
 class NodeGB28181StreamServerSession {
     constructor(config, socket) {
@@ -12,9 +11,10 @@ class NodeGB28181StreamServerSession {
         this.id = NodeCoreUtils.generateNewSessionID();
         this.ip = socket.remoteAddress;
         this.parserBuffer = Buffer.alloc(0);
-        this.TAG = 'rtpovertcp';
-        this.sequenceNumber = 0;
-        this.cache = Buffer.alloc(0);
+        this.TAG = 'GB28181Stream';
+
+
+        this.rtpPackets = new Map();
 
         context.sessions.set(this.id, this);
     }
@@ -66,11 +66,75 @@ class NodeGB28181StreamServerSession {
         //RFC2326标准格式： $+长度+RTP头+数据
         //RFC4571标准格式: 长度+RTP头+数据
 
+        let position = 0;
 
+        while (this.parserBuffer.length > position) {
 
-        let rtplength = this.parserBuffer.readUInt16BE(0);
+            let rtplength = this.parserBuffer.readUInt16BE(position);
+            position += 2;
 
-        Logger.log(`TCP Connect ,Data-Length:${data.length} ,RTPPack-Length:${rtplength}`);
+            if (this.parserBuffer.length - position >= rtplength) {
+                let buffer = this.parserBuffer.slice(position, position + rtplength);
+                position += rtplength;
+                let rtpPacket = new RtpPacket(buffer);
+
+                let ssrc = rtpPacket.getSSRC();
+                let seqNumber = rtpPacket.getSeqNumber();
+                let playloadType = rtpPacket.getPayloadType();
+                let timestamp = rtpPacket.getTimestamp();
+
+                if (!this.rtpPackets.has(ssrc))
+                    this.rtpPackets.set(ssrc, new Map());
+
+                let session = this.rtpPackets.get(ssrc);
+
+                Logger.log(`TCP RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
+
+                switch (playloadType) {
+                    //PS封装
+                    case 96:
+                        {
+
+                            if (!session.has(timestamp)) {
+                                session.set(timestamp, rtpPacket.getPayload());
+                            }
+                            else {
+                                session.set(timestamp, Buffer.concat([session.get(timestamp), rtpPacket.getPayload()]));
+                            }
+
+                            //等待下一帧 收到，处理上一帧
+                            if (session.size > 1) {
+
+                                let entries = session.entries()
+
+                                let first = entries.next().value;
+                                let second = entries.next().value;
+
+                                session.delete(first[0]);
+
+                                try {
+                                    let packet = NodeGB28181StreamServerSession.parseMpegPSPacket(first[1]);
+                                    if (packet.video.length > 0)
+                                        context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
+                                }
+                                catch (error) {
+                                    Logger.log(`PS Packet Parse Fail.${error}`);
+                                }
+                            }
+                        }
+                        break;
+                }
+            }
+            else {
+                break;
+            }
+        }
+    }
+
+    
+    //补位0
+    PrefixInteger(num, m) {
+        return (Array(m).join(0) + num).slice(-m);
     }
 
     //解析 PS 获取Nalus video/audio/streaminfo
@@ -221,70 +285,6 @@ class NodeGB28181StreamServerSession {
 
         return { video: nalus, audio: audiocache, streaminfo: streaminfo };
     }
-
-    //RTPPacket
-    static parseRtpPacket(buf) {
-
-        if (buf.length < 12)
-            throw new Error('can not parse buffer smaller than fixed header');
-
-        var firstByte = buf.readUInt8(0);
-        var secondByte = buf.readUInt8(1);
-        var version = firstByte >> 6;
-        var padding = (firstByte >> 5) & 1;
-        var extension = (firstByte >> 4) & 1;
-        var csrcCount = firstByte & 0x0f;
-        var marker = secondByte >> 7;
-        var payloadType = secondByte & 0x7f;
-        var sequenceNumber = buf.readUInt16BE(2);
-        var timestamp = buf.readUInt32BE(4);
-        var ssrc = buf.readUInt32BE(8);
-
-        var offset = 12;
-        var end = buf.length;
-        if (end - offset >= 4 * csrcCount) {
-            offset += 4 * csrcCount;
-        } else {
-            Logger.log(`no enough space for csrc`);
-        }
-        if (extension) {
-            if (end - offset >= 4) {
-                var extLen = 4 * (buf.readUInt16BE(offset + 2));
-                offset += 4;
-                if (end - offset >= extLen) {
-                    offset += extLen;
-                } else {
-                    Logger.log(`no enough space for extension data`);
-                }
-            } else {
-                Logger.log(`no enough space for extension header`);
-            }
-        }
-        if (padding) {
-            if (end - offset > 0) {
-                var paddingBytes = buf.readUInt8(end - 1);
-                if (end - offset >= paddingBytes) {
-                    end -= paddingBytes;
-                }
-            }
-        }
-
-        var parsed = {
-            version: version,
-            padding: padding,
-            extension: extension,
-            csrcCount: csrcCount,
-            marker: marker,
-            payloadType: payloadType,
-            sequenceNumber: sequenceNumber,
-            timestamp: timestamp,
-            ssrc: ssrc,
-            payload: buf.slice(offset, end)
-        };
-
-        return parsed;
-    }
-
 }
 
 module.exports = NodeGB28181StreamServerSession;
