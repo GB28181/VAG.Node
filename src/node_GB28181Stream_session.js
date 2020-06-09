@@ -74,6 +74,7 @@ class NodeGB28181StreamServerSession {
             position += 2;
 
             if (this.parserBuffer.length - position >= rtplength) {
+                
                 let buffer = this.parserBuffer.slice(position, position + rtplength);
                 position += rtplength;
                 let rtpPacket = new RtpPacket(buffer);
@@ -108,6 +109,7 @@ class NodeGB28181StreamServerSession {
                                 let entries = session.entries()
 
                                 let first = entries.next().value;
+
                                 let second = entries.next().value;
 
                                 session.delete(first[0]);
