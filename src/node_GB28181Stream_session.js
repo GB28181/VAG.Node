@@ -5,6 +5,9 @@ const Logger = require('./node_core_logger');
 const RtpPacket = require("rtp-rtcp").RtpPacket;
 
 class NodeGB28181StreamServerSession {
+
+    static rtpPackets = new Map();
+
     constructor(config, socket) {
         this.config = config;
         this.socket = socket;
@@ -12,9 +15,6 @@ class NodeGB28181StreamServerSession {
         this.ip = socket.remoteAddress;
         this.parserBuffer = Buffer.alloc(0);
         this.TAG = 'GB28181Stream';
-
-
-        this.rtpPackets = new Map();
 
         context.sessions.set(this.id, this);
     }
@@ -28,8 +28,6 @@ class NodeGB28181StreamServerSession {
         this.isStarting = true;
 
         this.connectTime = new Date();
-
-        this.connectCmdObj = { ip: this.ip };
 
         Logger.log(`[${this.TAG} connect] id=${this.id} ip=${this.ip} `);
 
@@ -77,62 +75,65 @@ class NodeGB28181StreamServerSession {
 
             let cache = this.parserBuffer.slice(2, rtplength + 2);
             this.parserBuffer = this.parserBuffer.slice(rtplength + 2);
-            let rtpPacket = new RtpPacket(cache);
 
-            let ssrc = rtpPacket.getSSRC();
-            let seqNumber = rtpPacket.getSeqNumber();
-            let playloadType = rtpPacket.getPayloadType();
-            let timestamp = rtpPacket.getTimestamp();
-            let playload = rtpPacket.getPayload();
-
-            if (!this.rtpPackets.has(ssrc))
-                this.rtpPackets.set(ssrc, new Map());
-
-            let session = this.rtpPackets.get(ssrc);
-
-            Logger.log(`TCP RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
-
-            switch (playloadType) {
-                //PS封装
-                case 96:
-                    {
-
-                        if (!session.has(timestamp)) {
-                            session.set(timestamp, playload);
-                        }
-                        else {
-                            session.set(timestamp, Buffer.concat([session.get(timestamp), playload]));
-                        }
-
-                        //等待下一帧 收到，处理上一帧
-                        if (session.size > 1) {
-
-                            let entries = session.entries()
-                            let first = entries.next().value;
-                            let second = entries.next().value;
-                            session.delete(first[0]);
-
-                            try {
-                                let packet = NodeGB28181StreamServerSession.parseMpegPSPacket(first[1]);
-                                if (packet.video.length > 0)
-                                    context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
-                            }
-                            catch (error) {
-                                Logger.log(`PS Packet Parse Fail.${error}`);
-                            }
-                        }
-                    }
-                    break;
-            }
-
+            NodeGB28181StreamServerSession.parseRTPacket(cache);
         }
 
     }
 
 
     //补位0
-    PrefixInteger(num, m) {
+    static PrefixInteger(num, m) {
         return (Array(m).join(0) + num).slice(-m);
+    }
+
+    //处理RTP包
+    static parseRTPacket(cache) {
+        let rtpPacket = new RtpPacket(cache);
+        let ssrc = rtpPacket.getSSRC();
+        let seqNumber = rtpPacket.getSeqNumber();
+        let playloadType = rtpPacket.getPayloadType();
+        let timestamp = rtpPacket.getTimestamp();
+        let playload = rtpPacket.getPayload();
+
+        if (!this.rtpPackets.has(ssrc))
+            this.rtpPackets.set(ssrc, new Map());
+
+        let session = this.rtpPackets.get(ssrc);
+
+        Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
+
+        switch (playloadType) {
+            //PS封装
+            case 96:
+                {
+                    if (!session.has(timestamp)) {
+                        session.set(timestamp, playload);
+                    }
+                    else {
+                        session.set(timestamp, Buffer.concat([session.get(timestamp), playload]));
+                    }
+
+                    //等待下一帧 收到，处理上一帧
+                    if (session.size > 1) {
+
+                        let entries = session.entries()
+                        let first = entries.next().value;
+                        let second = entries.next().value;
+                        session.delete(first[0]);
+
+                        try {
+                            let packet = this.parseMpegPSPacket(first[1]);
+                            if (packet.video.length > 0)
+                                context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
+                        }
+                        catch (error) {
+                            Logger.log(`PS Packet Parse Fail.${error}`);
+                        }
+                    }
+                }
+                break;
+        }
     }
 
     //解析 PS 获取Nalus video/audio/streaminfo

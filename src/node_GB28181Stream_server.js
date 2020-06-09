@@ -5,8 +5,6 @@ const context = require('./node_core_ctx');
 const NodeRtmpClient = require('./node_rtmp_client');
 
 const RtpSession = require("rtp-rtcp").RtpSession;
-const RtpPacket = require("rtp-rtcp").RtpPacket;
-
 
 //GB28181 媒体服务器
 class NodeGB28181StreamServer {
@@ -14,130 +12,82 @@ class NodeGB28181StreamServer {
         this.listen = config.GB28181.streamServer.listen || 9200;
         this.host = config.GB28181.streamServer.host || '0.0.0.0';
 
-        this.tcpServer = Net.createServer((socket) => {
-            let session = new NodeRtpSession(config, socket);
-            session.run();
-        });
-
         if (config.GB28181.streamServer.invite_port_fixed) {
             this.udpServer = new RtpSession(this.listen);
+
             this.udpServer.createRtcpServer();
+
+            this.tcpServer = Net.createServer((socket) => {
+                let session = new NodeRtpSession(config, socket);
+                session.run();
+            });
         }
-        
-        //会话
-        this.dialogs = {};
-        //媒体发送者
-        this.devices = {};
 
-        this.rtpPackets = new Map();
-
-        this.RtmpClients = {};
+        //推流客户端
+        this.rtmpClients = {};
 
         //默认的RTMP服务器基地址
         this.rtmpServer = config.GB28181.streamServer.rtmpServer || 'rtmp://127.0.0.1/live';
     }
 
     run() {
-        //TCP
-        this.tcpServer.listen(this.listen, () => {
-            Logger.log(`Node Media GB28181-Stream/TCP Server started on port: ${this.listen}`);
-        });
-        this.tcpServer.on('error', (e) => {
-            Logger.error(`Node Media GB28181-Stream/TCP Server ${e}`);
-        });
-        this.tcpServer.on('close', () => {
-            Logger.log('Node Media GB28181-Stream/TCP Server Close.');
-        });
 
-        //UDP
-        this.udpServer.on("listening", () => {
-            Logger.log(`Node Media GB28181-Stream/UDP Server started on port: ${this.listen}`);
-        });
+        if (this.udpServer) {
+            //TCP
+            this.tcpServer.listen(this.listen, () => {
+                Logger.log(`Node Media GB28181-Stream/TCP Server started on port: ${this.listen}`);
+            });
+            this.tcpServer.on('error', (e) => {
+                Logger.error(`Node Media GB28181-Stream/TCP Server ${e}`);
+            });
+            this.tcpServer.on('close', () => {
+                Logger.log('Node Media GB28181-Stream/TCP Server Close.');
+            });
+        }
 
-        this.udpServer.on("message", (msg, info) => {
-            let rtpPacket = new RtpPacket(msg);
+        if (this.udpServer) {
+            //UDP
+            this.udpServer.on("listening", () => {
+                Logger.log(`Node Media GB28181-Stream/UDP Server started on port: ${this.listen}`);
+            });
 
-            let ssrc = rtpPacket.getSSRC();
-            let seqNumber = rtpPacket.getSeqNumber();
-            let playloadType = rtpPacket.getPayloadType();
-            let timestamp = rtpPacket.getTimestamp();
-
-            if (!this.rtpPackets.has(ssrc))
-                this.rtpPackets.set(ssrc, new Map());
-
-            let session = this.rtpPackets.get(ssrc);
-
-            Logger.log(`UDP RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
-
-            switch (playloadType) {
-                //PS封装
-                case 96:
-                    {
-
-                        if (!session.has(timestamp)) {
-                            session.set(timestamp, rtpPacket.getPayload());
-                        }
-                        else {
-                            session.set(timestamp, Buffer.concat([session.get(timestamp), rtpPacket.getPayload()]));
-                        }
-
-                        //等待下一帧 收到，处理上一帧
-                        if (session.size > 1) {
-
-                            let entries = session.entries()
-
-                            let first = entries.next().value;
-                            let second = entries.next().value;
-
-                            session.delete(first[0]);
-
-                            try {
-                                let packet = NodeRtpSession.parseMpegPSPacket(first[1]);
-                                if (packet.video.length > 0)
-                                    context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
-                            }
-                            catch (error) {
-                                Logger.log(`PS Packet Parse Fail.${error}`);
-                            }
-                        }
-                    }
-                    break;
-            }
-        });
+            this.udpServer.on("message", (msg, info) => {
+                NodeRtpSession.parseRTPacket(msg);
+            });
+        }
 
         //收到RTP 包
         context.nodeEvent.on('rtpReceived', this.rtpReceived.bind(this));
 
-        //停止播放
+        //停止播放,关闭推流
         context.nodeEvent.on('stopPlayed', (ssrc) => {
-            if (this.RtmpClients[ssrc]) {
-                this.RtmpClients[ssrc].stop();
-                delete this.RtmpClients[ssrc];
+            if (this.rtmpClients[ssrc]) {
+                this.rtmpClients[ssrc].stop();
+                delete this.rtmpClients[ssrc];
             }
         });
-    }
-
-    //补位0
-    PrefixInteger(num, m) {
-        return (Array(m).join(0) + num).slice(-m);
     }
 
     //TCPServer/UDPServer 接收到nalus
     rtpReceived(ssrc, timestamp, packet) {
 
-        if (!this.RtmpClients[ssrc]) {
-            this.RtmpClients[ssrc] = new NodeRtmpClient(`${this.rtmpServer}/${ssrc}`);
-            this.RtmpClients[ssrc].startPush();
+        if (!this.rtmpClients[ssrc]) {
+            this.rtmpClients[ssrc] = new NodeRtmpClient(`${this.rtmpServer}/${ssrc}`);
+            this.rtmpClients[ssrc].startPush();
 
             //RTMP 发布流状态
-            this.RtmpClients[ssrc].on('status', (info) => {
-                if (info.code === 'NetStream.Publish.Start') {
-                    this.RtmpClients[ssrc].isPublishStart = true;
-                }
+            this.rtmpClients[ssrc].on('status', (info) => {
+                if (info.code === 'NetStream.Publish.Start')
+                    this.rtmpClients[ssrc].isPublishStart = true;
             });
+
+            //连接关闭
+            this.rtmpClients[ssrc].on('close', () => {
+
+             });
         }
 
-        let rtmpClinet = this.RtmpClients[ssrc];
+        let rtmpClinet = this.rtmpClients[ssrc];
 
         //记录收包时间，长时间未收包关闭会话
         rtmpClinet._lastReceiveTime = new Date();
