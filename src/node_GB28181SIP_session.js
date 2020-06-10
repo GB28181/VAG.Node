@@ -320,8 +320,10 @@ class NodeSipSession {
 
 
     //预览 channelid 通道国标编码
-    RealPlay(channelid, rhost, rport) {
+    RealPlay(channelid, rhost, rport, mode) {
 
+        //0: udp,1:tcp/passive ,2:tcp/active
+        let selectMode = mode || 0;
         let ssrc = "0" + channelid.substring(16, 20) + channelid.substring(3, 8);
 
         let host = rhost || "127.0.0.1";
@@ -339,6 +341,22 @@ class NodeSipSession {
         if (isExist)
             return;
 
+
+        let sdpV = "";
+
+        switch (selectMode) {
+            case 0:
+                break;
+            case 1:
+                sdpV = `a=setup:passive\r\n` +
+                    `a=connection:new\r\n`;
+                break;
+            case 2:
+                sdpV = `a=setup:active\r\n` +
+                    `a=connection:new\r\n`;
+                break;
+        }
+
         //s=Play/Playback/Download/Talk
         let content = `v=0\r\n` +
             `o=${channelid} 0 0 IN IP4 ${host}\r\n` +
@@ -348,9 +366,9 @@ class NodeSipSession {
             `m=video ${port} TCP/RTP/AVP 96\r\n` +
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
-            `a=setup:active\r\n` +
-            `a=connection:new\r\n` +
+            sdpV +
             `y=${ssrc}\r\n`;
+
 
         let that = this;
 
@@ -379,7 +397,7 @@ class NodeSipSession {
                                 if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
                                     let host = sdpContent.connection.ip;
                                     let port = sdpContent.media[0].port;
-                                    
+
                                     var client = new net.Socket();
 
                                     client.connect(port, host, () => { Logger.log("TCP Client 连接成功，等待通道发送数据...") });

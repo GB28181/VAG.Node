@@ -3,9 +3,9 @@ function getSessions(req, res, next) {
     let sessions = {};
 
     this.sessions.forEach(function (session, id) {
-        if (session.TAG === 'sip') 
+        if (session.TAG === 'sip')
             sessions[session.id] = { host: session.via.host, port: session.via.port, info: session.deviceinfo, status: session.devicestatus, catalog: session.catalog };
-        
+
     });
 
     res.json(sessions);
@@ -19,7 +19,7 @@ function getSession(req, res, next) {
 
         switch (req.params.action) {
             case 'start':
-                session.RealPlay(req.params.channel, req.params.host, req.params.port);
+                session.RealPlay(req.params.channel, req.params.host, req.params.port, req.params.mode);
                 break;
             case 'stop':
                 session.StopRealPlay(req.params.channel, req.params.host, req.params.port);
