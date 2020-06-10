@@ -16,3 +16,5 @@ http://localhost:8001/api/v1/vag/devices/34020000001320000001/340200000013100000
 
 //预览结束
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/stop/192.168.3.5/9200
+
+配合 RTMP 流服务器使用，推荐使用 Node-Media-Server 测试
