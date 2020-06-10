@@ -1,7 +1,5 @@
 const digest = require('sip/digest');
 const sip = require('sip');
-const sdp = require('sdp-transform');
-
 const context = require('./node_core_ctx');
 const Logger = require('./node_core_logger');
 const NodeSipSession = require('./node_GB28181SIP_session');
