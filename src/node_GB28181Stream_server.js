@@ -83,7 +83,7 @@ class NodeGB28181StreamServer {
 
             //连接关闭
             this.rtmpClients[ssrc].on('close', () => {
-
+                context.nodeEvent.emit('rtmpClientClose', ssrc);
              });
         }
 
