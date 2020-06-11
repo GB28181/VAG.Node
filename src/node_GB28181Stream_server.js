@@ -8,6 +8,7 @@ const RtpSession = require("rtp-rtcp").RtpSession;
 //GB28181 媒体服务器
 class NodeGB28181StreamServer {
     constructor(config) {
+
         this.listen = config.GB28181.streamServer.listen || 9200;
         this.host = config.GB28181.streamServer.host || '0.0.0.0';
 
@@ -76,13 +77,14 @@ class NodeGB28181StreamServer {
 
     //接收到 INVITE SDP 描述
     sdpReceived(sdpContent) {
-        
+
         //判断流发送者SDP描述，如果是 TCP主动模式 则创建主动取流客户端
         if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
             let host = sdpContent.connection.ip;
             let port = sdpContent.media[0].port;
+
             
-            
+            this.createTCPClient("", host, port);
         }
     }
 
@@ -175,12 +177,9 @@ class NodeGB28181StreamServer {
             switch (streaminfo.audio) {
                 //AAC
                 case 0x0f:
-                    break;
-                //SVAC
-                case 0x9b:
-                    break;
-                //PCM
-                case 0x8b:
+                    {
+                        //ToDo 需要判断音频信息，采样率，采样深度，码率
+                    }
                     break;
                 //G711a
                 case 0x90:
@@ -199,15 +198,6 @@ class NodeGB28181StreamServer {
                         rtmpClinet.deltaAudio = 0;
                         rtmpClinet.sendfirstAudioPacket = true;
                     }
-                    break;
-                //G722
-                case 0x92:
-                    break;
-                //G723
-                case 0x93:
-                    break;
-                //G729
-                case 0x99:
                     break;
             }
         }
@@ -325,9 +315,11 @@ class NodeGB28181StreamServer {
 
     stop() {
 
-        this.tcpServer.close();
+        if (this.tcpServer)
+            this.tcpServer.close();
 
-        this.udpServer.close();
+        if (this.udpServer)
+            this.udpServer.close();
 
         context.sessions.forEach((session, id) => {
             if (session instanceof NodeRtpSession) {
