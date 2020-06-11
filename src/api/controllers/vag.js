@@ -36,5 +36,24 @@ function getSession(req, res, next) {
     res.json(result);
 }
 
+function ptzControl(req, res) {
+    let result = {};
 
-module.exports = { getSession: getSession, getSessions: getSessions }
+    if (this.sessions.has(req.params.device)) {
+        let session = this.sessions.get(req.params.device);
+
+        session.Control(req.params.channel, "PTZCmd", req.params.value);
+
+        result.result = true;
+        result.message = 'OK';
+    }
+    else {
+        result.result = false;
+        result.message = 'device not online';
+    }
+    res.json(result);
+}
+
+
+
+module.exports = { getSession: getSession, getSessions: getSessions, ptzControl: ptzControl }

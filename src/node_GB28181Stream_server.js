@@ -81,7 +81,7 @@ class NodeGB28181StreamServer {
         if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
             let host = sdpContent.connection.ip;
             let port = sdpContent.media[0].port;
-
+            
             
         }
     }

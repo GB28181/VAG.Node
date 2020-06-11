@@ -1,7 +1,7 @@
 const xml2js = require('xml2js');
-const os = require('os');
-const sip = require('sip');
-const sdp = require('sdp-transform');
+const OS = require('os');
+const SIP = require('sip');
+const SDP = require('sdp-transform');
 const Logger = require('./node_core_logger');
 const context = require('./node_core_ctx');
 
@@ -231,7 +231,40 @@ class NodeSipSession {
 
         switch (cmdtype) {
             case 'PTZCmd':
-                json.Query.PTZCmd = cmdvalue;
+                {
+                    let value = "A50F01011F0000D5";
+
+                    switch (cmdvalue) {
+                        //向右
+                        case 0:
+                            break;
+                        //向左
+                        case 1:
+                            value = "A50F01021F0000D6";
+                            break;
+                        //向下
+                        case 2:
+                            value = "A50F0104001F00D8";
+                            break;
+                        //向上
+                        case 3:
+                            value = "A50F0108001F00DC";
+                            break;
+                        //放大
+                        case 4:
+                            value = "A50F0110000010D5";
+                            break;
+                        //缩小
+                        case 5:
+                            value = "A50F0120000010E5";
+                            break;
+                        //停止
+                        case 6:
+                            value = "A50F010H000010E5";
+                            break;
+                    }
+                    json.Query.PTZCmd = value;
+                }
                 break;
             case 'TeleBoot':
                 json.Query.TeleBoot = cmdvalue;
@@ -393,11 +426,11 @@ class NodeSipSession {
                             if (response.content) {
 
                                 // 响应消息体
-                                let sdpContent = sdp.parse(response.content);                               
+                                let sdpContent = SDP.parse(response.content);
 
                                 //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
                                 context.nodeEvent.emit('sdpReceived', sdpContent);
-                                
+
                                 //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
                                 that.uas.send({
                                     method: 'ACK',
@@ -486,7 +519,7 @@ class NodeSipSession {
             }
         }
 
-        this.uas.send(sip.makeResponse(request, 200, 'Ok'));
+        this.uas.send(SIP.makeResponse(request, 200, 'Ok'));
     }
 
     //发送SIP消息
@@ -504,7 +537,7 @@ class NodeSipSession {
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
                 'content-type': options.contentType,
                 subject: options.subject,
-                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + os.hostname() + ":" + this.config.GB28181.sipServer.listen }]
+                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + OS.hostname() + ":" + this.config.GB28181.sipServer.listen }]
             },
             content: options.content
         }
