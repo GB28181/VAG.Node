@@ -6,8 +6,6 @@ const RtpPacket = require("rtp-rtcp").RtpPacket;
 
 class NodeGB28181StreamServerSession {
 
-    static rtpPackets = new Map();
-    static tcpRtpPackets = new Map();
 
     constructor(config, socket) {
         this.config = config;
@@ -73,9 +71,12 @@ class NodeGB28181StreamServerSession {
         return (Array(m).join(0) + num).slice(-m);
     }
 
-
     //处理TCP/RTP包
     static parseTCPRTPacket(id, cache) {
+
+        if (this.tcpRtpPackets)
+            this.tcpRtpPackets = new Map();
+
         if (!this.tcpRtpPackets.has(id))
             this.tcpRtpPackets.set(id, Buffer.alloc(0));
 
@@ -103,6 +104,10 @@ class NodeGB28181StreamServerSession {
 
     //处理UDP/RTP包
     static parseRTPacket(cache) {
+
+        if (this.rtpPackets)
+            this.rtpPackets = new Map();
+
         let rtpPacket = new RtpPacket(cache);
         let ssrc = rtpPacket.getSSRC();
         let seqNumber = rtpPacket.getSeqNumber();

@@ -60,7 +60,7 @@ class NodeGB28181StreamServer {
             });
         }
 
-        //创建TCP 主动连接客户端
+        //SDP收到
         context.nodeEvent.on('sdpReceived', this.sdpReceived.bind(this));
 
         //RTP己处理好
