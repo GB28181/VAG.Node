@@ -1,5 +1,4 @@
 const xml2js = require('xml2js');
-const net = require('net');
 const os = require('os');
 const sip = require('sip');
 const sdp = require('sdp-transform');
@@ -20,6 +19,7 @@ class NodeSipSession {
 
         //超时
         this.pingTime = config.GB28181.sipServer.ping ? config.GB28181.sipServer.ping * 1000 : 60000;
+
         //重试次数
         this.pingTimeout = config.GB28181.sipServer.ping_timeout || 3;
 
@@ -337,7 +337,7 @@ class NodeSipSession {
                 isExist = true;
         }
 
-
+        //己存在会话
         if (isExist)
             return;
 
@@ -378,7 +378,8 @@ class NodeSipSession {
             content: content,
             callback: function (response) {
                 if (response.status >= 300) {
-                    Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+                    //错误信息
+                    Logger.error(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
                 }
                 else if (response.status < 200) {
                     Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
@@ -388,31 +389,16 @@ class NodeSipSession {
                     switch (options.method) {
                         case 'INVITE':
 
-                            //解SDP
+                            //SDP
                             if (response.content) {
 
-                                let sdpContent = sdp.parse(response.content);
+                                // 响应消息体
+                                let sdpContent = sdp.parse(response.content);                               
 
-                                //创建主动取流客户端,ToDo让流媒体 创建客户端去取流
-                                if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
-                                    let host = sdpContent.connection.ip;
-                                    let port = sdpContent.media[0].port;
-
-                                    var client = new net.Socket();
-
-                                    client.connect(port, host, () => { Logger.log("TCP Client 连接成功，等待通道发送数据...") });
-
-                                    client.on('data', (data) => {
-                                        Logger.log(`TCP Clinet 收到数据长度为：${data.length} `);
-                                    });
-
-                                    //连接关闭
-                                    client.on('error', (err) => {
-                                        client.destroy();
-                                    });
-                                }
-
-                                // SIP服务器收到媒体流发送者返回的200OK 响应后,向媒体流发送者发送 ACK 请求,请求中不携带消息体,完成与媒体流发送者的Invite会话建立过程
+                                //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
+                                context.nodeEvent.emit('sdpReceived', sdpContent);
+                                
+                                //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
                                 that.uas.send({
                                     method: 'ACK',
                                     uri: response.headers.contact[0].uri,
@@ -423,24 +409,26 @@ class NodeSipSession {
                                         cseq: { method: 'ACK', seq: response.headers.cseq.seq }
                                     }
                                 });
-                            }
 
-                            //会话标识
-                            let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
+                                //会话标识
+                                let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
 
-                            if (!that.dialogs[key]) {
-                                // 断开会话请求
-                                let request = {
-                                    method: 'BYE',
-                                    uri: response.headers.contact[0].uri,
-                                    headers: {
-                                        to: response.headers.to,
-                                        from: response.headers.from,
-                                        'call-id': response.headers['call-id'],
-                                        cseq: { method: 'BYE', seq: response.headers.cseq.seq + 1 }//需额外加1
+                                //创建会话
+                                if (!that.dialogs[key]) {
+                                    // 断开会话请求
+                                    let request = {
+                                        method: 'BYE',
+                                        uri: response.headers.contact[0].uri,
+                                        headers: {
+                                            to: response.headers.to,
+                                            from: response.headers.from,
+                                            'call-id': response.headers['call-id'],
+                                            cseq: { method: 'BYE', seq: response.headers.cseq.seq + 1 }//需额外加1
+                                        }
                                     }
+
+                                    that.dialogs[key] = { channelid: channelid, ssrc: ssrc, host: host, port: port, request: request };
                                 }
-                                that.dialogs[key] = { channelid: channelid, ssrc: ssrc, host: host, port: port, request: request };
                             }
                             break;
                     }

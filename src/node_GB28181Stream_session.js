@@ -7,6 +7,7 @@ const RtpPacket = require("rtp-rtcp").RtpPacket;
 class NodeGB28181StreamServerSession {
 
     static rtpPackets = new Map();
+    static tcpRtpPackets = new Map();
 
     constructor(config, socket) {
         this.config = config;
@@ -58,27 +59,12 @@ class NodeGB28181StreamServerSession {
         this.stop();
     }
 
+    //接收TCP 包
     onSocketData(data) {
-        this.parserBuffer = Buffer.concat([this.parserBuffer, data]);
         //国标28181的tcp码流标准遵循的是RFC4571标准
         //RFC2326标准格式： $+长度+RTP头+数据
         //RFC4571标准格式: 长度+RTP头+数据
-
-        let rtplength = 0;
-
-        while (this.parserBuffer.length >= rtplength + 2) {
-
-            rtplength = this.parserBuffer.readUInt16BE(0);
-
-            if (this.parserBuffer.length < rtplength + 2)
-                break;
-
-            let cache = this.parserBuffer.slice(2, rtplength + 2);
-            this.parserBuffer = this.parserBuffer.slice(rtplength + 2);
-
-            NodeGB28181StreamServerSession.parseRTPacket(cache);
-        }
-
+        NodeGB28181StreamServerSession.parseTCPRTPacket(this.id, data);
     }
 
 
@@ -87,7 +73,35 @@ class NodeGB28181StreamServerSession {
         return (Array(m).join(0) + num).slice(-m);
     }
 
-    //处理RTP包
+
+    //处理TCP/RTP包
+    static parseTCPRTPacket(id, cache) {
+        if (!this.tcpRtpPackets.has(id))
+            this.tcpRtpPackets.set(id, Buffer.alloc(0));
+
+        //缓存数据
+        let session = this.tcpRtpPackets.get(id);
+
+        session = Buffer.concat([session, cache]);
+
+        let rtplength = 0;
+
+        while (session.length >= rtplength + 2) {
+
+            rtplength = session.readUInt16BE(0);
+
+            if (session.length < rtplength + 2)
+                break;
+
+            let rtpData = session.slice(2, rtplength + 2);
+
+            session = session.slice(rtplength + 2);
+
+            this.parseRTPacket(rtpData);
+        }
+    }
+
+    //处理UDP/RTP包
     static parseRTPacket(cache) {
         let rtpPacket = new RtpPacket(cache);
         let ssrc = rtpPacket.getSSRC();
@@ -124,8 +138,7 @@ class NodeGB28181StreamServerSession {
 
                         try {
                             let packet = this.parseMpegPSPacket(first[1]);
-                            if (packet.video.length > 0)
-                                context.nodeEvent.emit('rtpReceived', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
+                            context.nodeEvent.emit('rtpReadyed', this.PrefixInteger(ssrc, 10), second[0] - first[0], packet);
                         }
                         catch (error) {
                             Logger.log(`PS Packet Parse Fail.${error}`);

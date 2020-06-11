@@ -3,7 +3,6 @@ const Logger = require('./node_core_logger');
 const NodeRtpSession = require('./node_GB28181Stream_session');
 const context = require('./node_core_ctx');
 const NodeRtmpClient = require('./node_rtmp_client');
-
 const RtpSession = require("rtp-rtcp").RtpSession;
 
 //GB28181 媒体服务器
@@ -12,9 +11,10 @@ class NodeGB28181StreamServer {
         this.listen = config.GB28181.streamServer.listen || 9200;
         this.host = config.GB28181.streamServer.host || '0.0.0.0';
 
+        //开启端口复用
         if (config.GB28181.streamServer.invite_port_fixed) {
+            //RTP-RTCP
             this.udpServer = new RtpSession(this.listen);
-
             this.udpServer.createRtcpServer();
 
             this.tcpServer = Net.createServer((socket) => {
@@ -22,6 +22,9 @@ class NodeGB28181StreamServer {
                 session.run();
             });
         }
+
+        //主动取流客户端（TCP/主动模式）
+        this.tcpClients = {};
 
         //推流客户端
         this.rtmpClients = {};
@@ -56,16 +59,52 @@ class NodeGB28181StreamServer {
             });
         }
 
-        //收到RTP 包
-        context.nodeEvent.on('rtpReceived', this.rtpReceived.bind(this));
+        //创建TCP 主动连接客户端
+        context.nodeEvent.on('sdpReceived', this.sdpReceived.bind(this));
 
-        //停止播放,关闭推流
+        //RTP己处理好
+        context.nodeEvent.on('rtpReadyed', this.rtpReceived.bind(this));
+
+        //停止播放,关闭推流客户端
         context.nodeEvent.on('stopPlayed', (ssrc) => {
             if (this.rtmpClients[ssrc]) {
                 this.rtmpClients[ssrc].stop();
                 delete this.rtmpClients[ssrc];
             }
         });
+    }
+
+    //接收到 INVITE SDP 描述
+    sdpReceived(sdpContent) {
+        
+        //判断流发送者SDP描述，如果是 TCP主动模式 则创建主动取流客户端
+        if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
+            let host = sdpContent.connection.ip;
+            let port = sdpContent.media[0].port;
+
+            
+        }
+    }
+
+    //创建TCP主动取流客户端
+    createTCPClient(ssrc, host, port) {
+
+        if (!this.tcpClients[ssrc]) {
+
+            this.tcpClients[ssrc] = new Net.Socket();
+
+            this.tcpClients[ssrc].connect(port, host, () => { Logger.log("TCP Client 连接成功，等待接收 RTP 数据包...") });
+
+            this.tcpClients[ssrc].on('data', (data) => {
+                NodeRtpSession.parseTCPRTPacket(ssrc, data);
+            });
+
+            //连接关闭
+            this.tcpClients[ssrc].on('error', (err) => {
+                this.tcpClients[ssrc].destroy();
+                delete this.this.tcpClients[ssrc];
+            });
+        }
     }
 
     //TCPServer/UDPServer 接收到nalus
@@ -84,7 +123,7 @@ class NodeGB28181StreamServer {
             //连接关闭
             this.rtmpClients[ssrc].on('close', () => {
                 context.nodeEvent.emit('rtmpClientClose', ssrc);
-             });
+            });
         }
 
         let rtmpClinet = this.rtmpClients[ssrc];

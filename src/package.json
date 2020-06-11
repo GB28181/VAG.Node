@@ -1,5 +1,5 @@
 {
-  "name": "video-agent-gatewayy",
+  "name": "video-agent-gateway",
   "version": "1.0.0",
   "description": "A Node.js implementation of GB28181 Server",
   "main": "index.js",
@@ -13,7 +13,8 @@
   "keywords": [
     "gb28181",
     "rtp",
-    "sip"
+    "sip",
+    "PS"
   ],
   "author": "Yzxliu",
   "license": "MIT",
