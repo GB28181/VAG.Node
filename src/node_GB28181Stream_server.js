@@ -82,10 +82,10 @@ class NodeGB28181StreamServer {
         if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
             let host = sdpContent.connection.ip;
             let port = sdpContent.media[0].port;
-
+            let ssrc = sdpContent.media[0].ssrc;
             //sdp获取 ssrc信息
 
-            this.createTCPClient("", host, port);
+            this.createTCPClient(ssrc, host, port);
         }
     }
 
@@ -114,22 +114,24 @@ class NodeGB28181StreamServer {
     rtpReceived(ssrc, timestamp, packet) {
 
         if (!context.publishers.has(ssrc)) {
-            context.publishers[ssrc] = new NodeRtmpClient(`${this.rtmpServer}/${ssrc}`);
-            context.publishers[ssrc].startPush();
+            var rtmpClient = new NodeRtmpClient(`${this.rtmpServer}/${ssrc}`);
+            rtmpClient.startPush();
 
             //RTMP 发布流状态
-            context.publishers[ssrc].on('status', (info) => {
+            rtmpClient.on('status', (info) => {
                 if (info.code === 'NetStream.Publish.Start')
-                    context.publishers[ssrc].isPublishStart = true;
+                    rtmpClient.isPublishStart = true;
             });
 
             //连接关闭
-            context.publishers[ssrc].on('close', () => {
+            rtmpClient.on('close', () => {
                 context.nodeEvent.emit('rtmpClientClose', ssrc);
             });
+
+            context.publishers.set(ssrc, rtmpClient);
         }
 
-        let rtmpClinet = context.publishers[ssrc];
+        let rtmpClinet = context.publishers.get(ssrc);
 
         //记录收包时间，长时间未收包关闭会话
         rtmpClinet._lastReceiveTime = new Date();

@@ -12,7 +12,6 @@ class NodeGB28181StreamServerSession {
         this.socket = socket;
         this.id = NodeCoreUtils.generateNewSessionID();
         this.ip = socket.remoteAddress;
-        this.parserBuffer = Buffer.alloc(0);
         this.TAG = 'GB28181Stream';
 
         context.sessions.set(this.id, this);
@@ -74,9 +73,9 @@ class NodeGB28181StreamServerSession {
     //处理TCP/RTP包
     static parseTCPRTPacket(id, cache) {
 
-        if (this.tcpRtpPackets)
+        if (!this.tcpRtpPackets)
             this.tcpRtpPackets = new Map();
-
+            
         if (!this.tcpRtpPackets.has(id))
             this.tcpRtpPackets.set(id, Buffer.alloc(0));
 
@@ -105,7 +104,7 @@ class NodeGB28181StreamServerSession {
     //处理UDP/RTP包
     static parseRTPacket(cache) {
 
-        if (this.rtpPackets)
+        if (!this.rtpPackets)
             this.rtpPackets = new Map();
 
         let rtpPacket = new RtpPacket(cache);
