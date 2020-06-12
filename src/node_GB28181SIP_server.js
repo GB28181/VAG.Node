@@ -1,5 +1,5 @@
 const digest = require('sip/digest');
-const sip = require('sip');
+const SIP = require('sip');
 const context = require('./node_core_ctx');
 const Logger = require('./node_core_logger');
 const NodeSipSession = require('./node_GB28181SIP_session');
@@ -19,7 +19,7 @@ class NodeSIPServer {
     run() {
 
         //监听端口，接收消息
-        this.uas = sip.create({ port: this.listen, logger: Logger }, (request) => {
+        this.uas = SIP.create({ port: this.listen, logger: Logger }, (request) => {
             switch (request.method) {
                 //当前域 注册/注销 REGISTER
                 case 'REGISTER':
@@ -41,7 +41,7 @@ class NodeSIPServer {
                     context.nodeEvent.emit('bye', request);
                     break;
                 default:
-                    this.uas.send(sip.makeResponse(request, 405, 'Method not allowed'));
+                    this.uas.send(SIP.makeResponse(request, 405, 'Method not allowed'));
                     break;
             }
         });
@@ -53,7 +53,7 @@ class NodeSIPServer {
 
         //处理消息
         context.nodeEvent.on('message', (request) => {
-            let userid = sip.parseUri(request.headers.from.uri).user;
+            let userid = SIP.parseUri(request.headers.from.uri).user;
             if (context.sessions.has(userid)) {
                 let session = context.sessions.get(userid);
                 session.onMessage(request);
@@ -72,7 +72,7 @@ class NodeSIPServer {
     auth(request) {
 
         //用户标识
-        let userid = sip.parseUri(request.headers.from.uri).user;
+        let userid = SIP.parseUri(request.headers.from.uri).user;
 
         //会话标识
         if (!this.userinfo[userid])
@@ -81,11 +81,11 @@ class NodeSIPServer {
         //判断是否携带鉴权字段
         if (!request.headers.authorization || !digest.authenticateRequest(this.userinfo[userid], request, { user: userid, password: this.defaultPassword })) {
             Logger.log(`[sip auth failed] id=${userid} ip=${request.headers.via[0].host} port=${request.headers.via[0].port} `);
-            this.uas.send(digest.challenge(this.userinfo[userid], sip.makeResponse(request, 401, 'Authentication Required')));
+            this.uas.send(digest.challenge(this.userinfo[userid], SIP.makeResponse(request, 401, 'Authentication Required')));
         }
         else {
             //通过验证 ,增加 Date 字段 （上下级和设备之间校时功能）  回复
-            this.uas.send(sip.makeResponse(request, 200, 'Ok', { Date: new Date().toJSON() }));
+            this.uas.send(SIP.makeResponse(request, 200, 'Ok', { Date: new Date().toJSON() }));
 
             //注册有效期
             let expires = request.headers.expires || this.config.GB28181.sipServer.expires;

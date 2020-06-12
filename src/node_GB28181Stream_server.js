@@ -10,25 +10,25 @@ class NodeGB28181StreamServer {
     constructor(config) {
 
         this.listen = config.GB28181.streamServer.listen || 9200;
+
         this.host = config.GB28181.streamServer.host || '0.0.0.0';
 
         //开启端口复用
         if (config.GB28181.streamServer.invite_port_fixed) {
-            //RTP-RTCP
+            //RTP-RTCP UDP-Server
             this.udpServer = new RtpSession(this.listen);
             this.udpServer.createRtcpServer();
 
+            //TCP-Server
             this.tcpServer = Net.createServer((socket) => {
                 let session = new NodeRtpSession(config, socket);
+
                 session.run();
             });
         }
 
         //主动取流客户端（TCP/主动模式）
         this.tcpClients = {};
-
-        //推流客户端
-        this.rtmpClients = {};
 
         //默认的RTMP服务器基地址
         this.rtmpServer = config.GB28181.streamServer.rtmpServer || 'rtmp://127.0.0.1/live';
@@ -68,9 +68,9 @@ class NodeGB28181StreamServer {
 
         //停止播放,关闭推流客户端
         context.nodeEvent.on('stopPlayed', (ssrc) => {
-            if (this.rtmpClients[ssrc]) {
-                this.rtmpClients[ssrc].stop();
-                delete this.rtmpClients[ssrc];
+            if (context.publishers[ssrc]) {
+                context.publishers[ssrc].stop();
+                delete this.context.publishers[ssrc];
             }
         });
     }
@@ -83,7 +83,8 @@ class NodeGB28181StreamServer {
             let host = sdpContent.connection.ip;
             let port = sdpContent.media[0].port;
 
-            
+            //sdp获取 ssrc信息
+
             this.createTCPClient("", host, port);
         }
     }
@@ -112,23 +113,23 @@ class NodeGB28181StreamServer {
     //TCPServer/UDPServer 接收到nalus
     rtpReceived(ssrc, timestamp, packet) {
 
-        if (!this.rtmpClients[ssrc]) {
-            this.rtmpClients[ssrc] = new NodeRtmpClient(`${this.rtmpServer}/${ssrc}`);
-            this.rtmpClients[ssrc].startPush();
+        if (!context.publishers.has(ssrc)) {
+            context.publishers[ssrc] = new NodeRtmpClient(`${this.rtmpServer}/${ssrc}`);
+            context.publishers[ssrc].startPush();
 
             //RTMP 发布流状态
-            this.rtmpClients[ssrc].on('status', (info) => {
+            context.publishers[ssrc].on('status', (info) => {
                 if (info.code === 'NetStream.Publish.Start')
-                    this.rtmpClients[ssrc].isPublishStart = true;
+                    context.publishers[ssrc].isPublishStart = true;
             });
 
             //连接关闭
-            this.rtmpClients[ssrc].on('close', () => {
+            context.publishers[ssrc].on('close', () => {
                 context.nodeEvent.emit('rtmpClientClose', ssrc);
             });
         }
 
-        let rtmpClinet = this.rtmpClients[ssrc];
+        let rtmpClinet = context.publishers[ssrc];
 
         //记录收包时间，长时间未收包关闭会话
         rtmpClinet._lastReceiveTime = new Date();

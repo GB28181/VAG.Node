@@ -1,13 +1,12 @@
-//
-//  Created by Mingliang Chen on 18/3/2.
-//  illuspas[a]gmail.com
-//  Copyright (c) 2018 Nodemedia. All rights reserved.
-//
+
 const EventEmitter = require('events');
 
 let sessions = new Map();
-let publishers = new Map();
-let idlePlayers = new Set();
+
+let publishers = new Map();//RTMP推流客户端
+
+
+
 let nodeEvent = new EventEmitter();
 let stat = {
   inbytes: 0,
