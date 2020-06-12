@@ -80,22 +80,24 @@ class NodeGB28181StreamServerSession {
             this.tcpRtpPackets.set(id, Buffer.alloc(0));
 
         //缓存数据
-        let session = this.tcpRtpPackets.get(id);
+        let rtpCache = this.tcpRtpPackets.get(id);
 
-        session = Buffer.concat([session, cache]);
+        rtpCache = Buffer.concat([rtpCache, cache]);
 
         let rtplength = 0;
 
-        while (session.length >= rtplength + 2) {
+        while (rtpCache.length >= rtplength + 2) {
 
-            rtplength = session.readUInt16BE(0);
+            rtplength = rtpCache.readUInt16BE(0);
 
-            if (session.length < rtplength + 2)
+            if (rtpCache.length < rtplength + 2)
                 break;
 
-            let rtpData = session.slice(2, rtplength + 2);
+            let rtpData = rtpCache.slice(2, rtplength + 2);
 
-            session = session.slice(rtplength + 2);
+            rtpCache = rtpCache.slice(rtplength + 2);
+
+            rtplength = 0;
 
             this.parseRTPacket(rtpData);
         }
@@ -139,7 +141,7 @@ class NodeGB28181StreamServerSession {
                         let entries = session.entries();
 
                         let first = entries.next().value;
-                        
+
                         let second = entries.next().value;
 
                         session.delete(first[0]);

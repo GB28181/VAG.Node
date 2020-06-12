@@ -378,17 +378,20 @@ class NodeSipSession {
 
 
         let sdpV = "";
+        let mValue = "RTP/AVP"
 
         switch (selectMode) {
-            case 0:
+            default:
                 break;
             case 1:
                 sdpV = `a=setup:passive\r\n` +
                     `a=connection:new\r\n`;
+                mValue = "TCP/RTP/AVP";
                 break;
             case 2:
                 sdpV = `a=setup:active\r\n` +
                     `a=connection:new\r\n`;
+                mValue = "TCP/RTP/AVP";
                 break;
         }
 
@@ -400,11 +403,12 @@ class NodeSipSession {
             `s=Play\r\n` +
             `c=IN IP4 ${host}\r\n` +
             `t=0 0\r\n` +
-            `m=video ${port} TCP/RTP/AVP 96\r\n` +
+            `m=video ${port} ${mValue} 96\r\n` +
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
-            `y=${ssrc}\r\n` ;
+            `y=${ssrc}\r\n` +
+            `f=v/2/4///a///\r\n`;
 
 
         let that = this;
@@ -485,7 +489,7 @@ class NodeSipSession {
             if (session.request && session.port === rport && session.host === rhost && session.channelid === channelid) {
                 this.uas.send(session.request, (reqponse) => {
                     //判断媒体发送者回复,断开RTMP推流
-                    
+
                     if (reqponse.status == 200) {
                         context.nodeEvent.emit('stopPlayed', session.ssrc);
                         delete this.dialogs[key];
@@ -537,7 +541,7 @@ class NodeSipSession {
             method: options.method,
             uri: uri,
             headers: {
-                to: { uri: 'sip:' + (options.id || this.id)  + '@' + this.config.GB28181.sipServer.realm },
+                to: { uri: 'sip:' + (options.id || this.id) + '@' + this.config.GB28181.sipServer.realm },
                 from: { uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + this.config.GB28181.sipServer.realm, params: { tag: options.tag || this.getTagRandom(8) } },
                 'call-id': this.getCallId(),
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
