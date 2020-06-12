@@ -68,9 +68,10 @@ class NodeGB28181StreamServer {
 
         //停止播放,关闭推流客户端
         context.nodeEvent.on('stopPlayed', (ssrc) => {
-            if (context.publishers[ssrc]) {
-                context.publishers[ssrc].stop();
-                delete this.context.publishers[ssrc];
+            if (context.publishers.has(ssrc)) {
+                let rtmpClient = context.publishers.get(ssrc);
+                rtmpClient.stop();
+                context.publishers.delete(ssrc);
             }
         });
     }

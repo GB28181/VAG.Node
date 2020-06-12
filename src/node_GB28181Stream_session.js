@@ -75,7 +75,7 @@ class NodeGB28181StreamServerSession {
 
         if (!this.tcpRtpPackets)
             this.tcpRtpPackets = new Map();
-            
+
         if (!this.tcpRtpPackets.has(id))
             this.tcpRtpPackets.set(id, Buffer.alloc(0));
 
@@ -113,6 +113,7 @@ class NodeGB28181StreamServerSession {
         let playloadType = rtpPacket.getPayloadType();
         let timestamp = rtpPacket.getTimestamp();
         let playload = rtpPacket.getPayload();
+
 
         if (!this.rtpPackets.has(ssrc))
             this.rtpPackets.set(ssrc, new Map());

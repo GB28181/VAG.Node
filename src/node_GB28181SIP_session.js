@@ -357,9 +357,11 @@ class NodeSipSession {
 
         //0: udp,1:tcp/passive ,2:tcp/active
         let selectMode = mode || 0;
+
         let ssrc = "0" + channelid.substring(16, 20) + channelid.substring(3, 8);
 
         let host = rhost || "127.0.0.1";
+
         let port = rport || 9200;
 
         let isExist = false;
@@ -392,7 +394,7 @@ class NodeSipSession {
 
         //s=Play/Playback/Download/Talk
         let content = `v=0\r\n` +
-            `o=${channelid} 0 0 IN IP4 ${host}\r\n` +
+            `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
             `s=Play\r\n` +
             `c=IN IP4 ${host}\r\n` +
             `t=0 0\r\n` +
@@ -406,6 +408,7 @@ class NodeSipSession {
         let that = this;
 
         let options = {
+            id: channelid,
             method: 'INVITE',
             contentType: 'Application/sdp',
             content: content,
@@ -525,7 +528,7 @@ class NodeSipSession {
     //发送SIP消息
     send(options) {
         //设备国标编码+设备主机地址+通讯端口
-        let uri = 'sip:' + this.id + '@' + this.via.host + ':' + this.via.port;
+        let uri = 'sip:' + (options.id || this.id) + '@' + this.via.host + ':' + this.via.port;
 
         let request = {
             method: options.method,
