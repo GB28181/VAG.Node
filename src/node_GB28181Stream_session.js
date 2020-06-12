@@ -120,7 +120,7 @@ class NodeGB28181StreamServerSession {
 
         let session = this.rtpPackets.get(ssrc);
 
-        Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} `);
+        Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} length:${playload.length} `);
 
         switch (playloadType) {
             //PS封装
@@ -136,9 +136,12 @@ class NodeGB28181StreamServerSession {
                     //等待下一帧 收到，处理上一帧
                     if (session.size > 1) {
 
-                        let entries = session.entries()
+                        let entries = session.entries();
+
                         let first = entries.next().value;
+                        
                         let second = entries.next().value;
+
                         session.delete(first[0]);
 
                         try {
@@ -182,6 +185,7 @@ class NodeGB28181StreamServerSession {
 
                 //填充头长度
                 let pack_stuffing_length = (buf.readUInt8(position) & 0x07);
+
                 position += 1;
                 position += pack_stuffing_length;
 
@@ -282,12 +286,14 @@ class NodeGB28181StreamServerSession {
         let nalus = [];
 
         while (naluscache.length - 4 > position) {
+
             if (naluscache.readUInt32BE(position) == 1) {
                 indexs.push(position);
                 position += 4;
 
                 if (indexs.length > 1) {
                     let nalu = naluscache.slice(indexs[indexs.length - 2] + 4, indexs[indexs.length - 1]);
+
                     nalus.push(nalu);
                 }
             }

@@ -77,16 +77,53 @@ class NodeGB28181StreamServer {
     }
 
     //接收到 INVITE SDP 描述
-    sdpReceived(sdpContent) {
+    sdpReceived(sdp) {
 
         //判断流发送者SDP描述，如果是 TCP主动模式 则创建主动取流客户端
-        if (sdpContent.media.length > 0 && sdpContent.media[0].setup === "passive") {
-            let host = sdpContent.connection.ip;
-            let port = sdpContent.media[0].port;
-            let ssrc = sdpContent.media[0].ssrc;
-            //sdp获取 ssrc信息
 
-            this.createTCPClient(ssrc, host, port);
+        if (sdp.media.length > 0 && sdp.media[0].ssrc) 
+        {
+            let ssrc = sdp.media[0].ssrc;
+
+                let host = sdp.connection || sdp.orgin.address;
+
+                let version = sdp.connection.version || 4; //IPV4 or IPV6
+
+                let port = sdp.media[0].port;
+
+                let protocol = sdp.media[0].protocol;
+
+                let mode = 0;
+
+                switch (protocol) {
+                    //UDP
+                    case 'RTP/AVP':
+                        {
+                            mode = 0;
+                        }
+                        break;
+                    //TCP
+                    case 'TCP/RTP/AVP':
+                        {
+                            let setup = sdp.media[0].setup;
+                            switch (setup) {
+                                //背动模式，需要创建TCP-Client 去取流
+                                case 'passive':
+                                    {
+                                        mode = 2;
+                                        this.createTCPClient(ssrc, host, port);
+                                    }
+                                    break;
+                                //主动模式
+                                case 'active':
+                                    {
+                                        mode = 1;
+                                    }
+                                    break;
+                            }
+                        }
+                        break;
+                }
         }
     }
 
@@ -106,7 +143,7 @@ class NodeGB28181StreamServer {
             //连接关闭
             this.tcpClients[ssrc].on('error', (err) => {
                 this.tcpClients[ssrc].destroy();
-                delete this.this.tcpClients[ssrc];
+                delete this.tcpClients[ssrc];
             });
         }
     }

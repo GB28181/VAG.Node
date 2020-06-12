@@ -392,6 +392,8 @@ class NodeSipSession {
                 break;
         }
 
+
+
         //s=Play/Playback/Download/Talk
         let content = `v=0\r\n` +
             `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
@@ -402,7 +404,7 @@ class NodeSipSession {
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
-            `y=${ssrc}\r\n`;
+            `y=${ssrc}\r\n` ;
 
 
         let that = this;
@@ -429,10 +431,10 @@ class NodeSipSession {
                             if (response.content) {
 
                                 // 响应消息体
-                                let sdpContent = SDP.parse(response.content);
+                                let sdp = SDP.parse(response.content);
 
                                 //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
-                                context.nodeEvent.emit('sdpReceived', sdpContent);
+                                context.nodeEvent.emit('sdpReceived', sdp);
 
                                 //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
                                 that.uas.send({
@@ -483,6 +485,7 @@ class NodeSipSession {
             if (session.request && session.port === rport && session.host === rhost && session.channelid === channelid) {
                 this.uas.send(session.request, (reqponse) => {
                     //判断媒体发送者回复,断开RTMP推流
+                    
                     if (reqponse.status == 200) {
                         context.nodeEvent.emit('stopPlayed', session.ssrc);
                         delete this.dialogs[key];
@@ -534,7 +537,7 @@ class NodeSipSession {
             method: options.method,
             uri: uri,
             headers: {
-                to: { uri: 'sip:' + this.id + '@' + this.config.GB28181.sipServer.realm },
+                to: { uri: 'sip:' + (options.id || this.id)  + '@' + this.config.GB28181.sipServer.realm },
                 from: { uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + this.config.GB28181.sipServer.realm, params: { tag: options.tag || this.getTagRandom(8) } },
                 'call-id': this.getCallId(),
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
