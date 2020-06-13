@@ -92,16 +92,6 @@ class NodeSipSession {
         return json;
     }
 
-    //云台控制
-    async PTZ(channelid, ptzvalue) {
-        return await this.ControlPTZ(channelid, ptzvalue);
-    }
-
-    //设备重启
-    async reBoot() {
-        return await this.ControlBoot();
-    }
-
     //获取设备基础信息
     async getDeviceInfo() {
         return await this.QueryDeviceInfo();
@@ -119,42 +109,12 @@ class NodeSipSession {
 
     //云台控制
     ControlPTZ(channelid, ptzvalue) {
-        return new Promise((resolve, reject) => {
-            let result = {};
-            this.Control(channelid, 'PTZCmd', ptzvalue, content => {
-                if (content.Result === 'OK') {
-                    switch (content.CmdType) {
-                        case 'DeviceControl':
-                            result = { result: true, message: content.Result };
-                            break;
-                    }
-                }
-                else {
-                    result = { result: false, message: content.Result, errorcode: content.ErrorCode };
-                }
-                resolve(result);
-            });
-        });
+        this.Control(channelid, 'PTZCmd', ptzvalue);
     }
 
     //重启
     ControlBoot() {
-        return new Promise((resolve, reject) => {
-            let result = {};
-            this.Control(this.id, 'TeleBoot', 'Boot', (content) => {
-                if (content.Result === 'OK') {
-                    switch (content.CmdType) {
-                        case 'DeviceControl':
-                            result = { result: true, message: content.Result };
-                            break;
-                    }
-                }
-                else {
-                    result = { result: false, message: content.Result, errorcode: content.ErrorCode };
-                }
-                resolve(result);
-            });
-        });
+        this.Control(this.id, 'TeleBoot', 'Boot',);
     }
 
     //设备信息
@@ -239,6 +199,8 @@ class NodeSipSession {
                     //  校验码 = (cmd[0]的高4位+cmd[0]的低4位+cmd[1]的高4位)%16
                     cmd[2] = 0x01;
 
+                    let ptzSpeed = 0x1f;
+
                     switch (Number(cmdvalue)) {
                         //停止
                         case 0:
@@ -247,38 +209,38 @@ class NodeSipSession {
                         //向右
                         case 1:
                             cmd[3] = 0x01;
+                            cmd[4] = ptzSpeed; 
                             break;
                         //向左
                         case 2:
                             cmd[3] = 0x02;
+                            cmd[4] = ptzSpeed; 
                             break;
                         //向下
                         case 3:
                             cmd[3] = 0x04;
+                            cmd[5] = ptzSpeed;
                             break;
                         //向上
                         case 4:
                             cmd[3] = 0x08;
+                            cmd[5] = ptzSpeed;
                             break;
                         //放大
                         case 5:
                             cmd[3] = 0x10;
+                            cmd[7] = 0x10;
                             break;
                         //缩小
                         case 6:
                             cmd[3] = 0x20;
+                            cmd[7] = 0x10;
                             break;
                         //组合
                         case 7:
                             cmd[3] = 0x29;
                             break;
                     }
-
-                    let ptzSpeed = 0xff;
-
-                    cmd[4] = ptzSpeed;       //数据1,水平控制速度、聚焦速度
-                    cmd[5] = ptzSpeed;       //数据2，垂直控制速度、光圈速度
-                    cmd[6] = 0x00;           //高4位为数据3=变倍控制速度，低4位为地址高4位
 
                     cmd[7] = (cmd[0] + cmd[1] + cmd[2] + cmd[3] + cmd[4] + cmd[5] + cmd[6]) % 256;
 

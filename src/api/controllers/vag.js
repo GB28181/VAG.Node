@@ -36,13 +36,13 @@ function getSession(req, res, next) {
     res.json(result);
 }
 
-async function  ptzControl(req, res) {
+function  ptzControl(req, res) {
     let result = {};
 
     if (this.sessions.has(req.params.device)) {
         let session = this.sessions.get(req.params.device);
 
-        let result = await session.PTZ(req.params.channel, req.params.value);
+        session.ControlPTZ(req.params.channel, req.params.value);
 
         result.result = true;
         result.message = 'OK';
