@@ -1,11 +1,15 @@
 # VAG.Node
+
 GB28181 Nodejs ，主要应用将 GB28181协议 摄像机/硬盘录像机 的PS流（H264/H265）打包推送到RTMP服务器发布
+
 
 Run:
 
+```bash
 node vag.js
+```
 
-API:
+## API:
 
 //获取所有设备/通道列表
 
