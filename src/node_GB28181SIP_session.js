@@ -199,7 +199,7 @@ class NodeSipSession {
                     //  校验码 = (cmd[0]的高4位+cmd[0]的低4位+cmd[1]的高4位)%16
                     cmd[2] = 0x01;
 
-                    let ptzSpeed = 0x1f;
+                    let ptzSpeed = 0x5f; //默认速度
 
                     switch (Number(cmdvalue)) {
                         //停止
@@ -229,12 +229,12 @@ class NodeSipSession {
                         //放大
                         case 5:
                             cmd[3] = 0x10;
-                            cmd[7] = 0x10;
+                            cmd[6] = 0x10;
                             break;
                         //缩小
                         case 6:
                             cmd[3] = 0x20;
-                            cmd[7] = 0x10;
+                            cmd[6] = 0x10;
                             break;
                         //组合
                         case 7:
