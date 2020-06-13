@@ -228,7 +228,7 @@ class NodeSipSession {
                         }
                         break;
                 }
-                
+
                 if (recordinfos.total != recordinfos.recordlist.length) {
                     return false;
                 }
@@ -383,8 +383,8 @@ class NodeSipSession {
                 DeviceID: channelId,
                 StartTime: startTime,
                 EndTime: endTime,
-                Secrecy: 0,
-                Type: 'time'
+                Secrecy: 0, //保密属性 0：不保密 1:涉密
+                Type: 'all' //录像产生类型 time/alarm/manual/all
             }
         };
 
@@ -413,58 +413,20 @@ class NodeSipSession {
     }
 
     //回放 begin-开始时间 end-结束时间 channelid-设备通道国标编码
-    Playback(begin, end, channelid) {
-        let ssid = channelid.substring(16, 20);
-        let sirialid = channelid.substring(3, 8);
-        let ssrc = "1" + sirialid + ssid;
-        let host = this.config.rtp.host || "127.0.0.1";
-        let port = this.config.rtp.udp || 9200;
-
-        let content = `v=0\r\n` +
-            `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
-            `s=Playback\r\n` +
-            `c=IN IP4 ${host}\r\n` +
-            `u=${channelid}:3` +
-            `t=${begin} ${end}\r\n` +
-            `m=video ${port} RTP/AVP 96 \r\n` +
-            `a=rtpmap:96 PS/90000\r\n` +
-            `a=recvonly\r\n` +
-            `y=${ssrc}\r\n`;
-
-        let options = {
-            method: 'INVITE',
-            contentType: 'Application/sdp',
-            content: content
-        };
-
-        this.send(options);
-    }
-
-
-    //预览 channelid 通道国标编码
-    RealPlay(channelid, rhost, rport, mode) {
+    Playback(channelId, begin, end, nhost, nport, mode) {
 
         //0: udp,1:tcp/passive ,2:tcp/active
         let selectMode = mode || 0;
 
-        let ssrc = "0" + channelid.substring(16, 20) + channelid.substring(3, 8);
+        let ssid = channelId.substring(16, 20);
 
-        let host = rhost || "127.0.0.1";
+        let sirialid = channelId.substring(3, 8);
 
-        let port = rport || 9200;
+        //回看以1开头
+        let ssrc = "1" + sirialid + ssid;
 
-        let isExist = false;
-
-        for (var key in this.dialogs) {
-            let session = this.dialogs[key];
-            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelid)
-                isExist = true;
-        }
-
-        //己存在会话
-        if (isExist)
-            return;
-
+        let host = nhost || "127.0.0.1";
+        let port = nport || 9200;
 
         let sdpV = "";
         let mValue = "RTP/AVP"
@@ -484,25 +446,25 @@ class NodeSipSession {
                 break;
         }
 
-
-
-        //s=Play/Playback/Download/Talk
         let content = `v=0\r\n` +
             `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
-            `s=Play\r\n` +
+            `s=Playback\r\n` +
             `c=IN IP4 ${host}\r\n` +
-            `t=0 0\r\n` +
+            `u=${channelId}:3\r\n` +
+            `t=${begin} ${end}\r\n` +
             `m=video ${port} ${mValue} 96\r\n` +
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
             `y=${ssrc}\r\n`;
 
-
         let that = this;
 
+        let xx = SDP.parse(content);
+
         let options = {
-            id: channelid,
+            id: channelId,
+            subject: `${channelId}:0,${this.id}:${Math.floor(Math.random() * 100)}`,
             method: 'INVITE',
             contentType: 'Application/sdp',
             content: content,
@@ -559,7 +521,136 @@ class NodeSipSession {
                                         }
                                     }
 
-                                    that.dialogs[key] = { channelid: channelid, ssrc: ssrc, host: host, port: port, request: request };
+                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, request: request };
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+        };
+
+        this.send(options);
+    }
+
+
+    //预览 channelid 通道国标编码
+    RealPlay(channelId, rhost, rport, mode) {
+
+        //0: udp,1:tcp/passive ,2:tcp/active
+        let selectMode = mode || 0;
+
+        let ssrc = "0" + channelId.substring(16, 20) + channelId.substring(3, 8);
+
+        let host = rhost || "127.0.0.1";
+
+        let port = rport || 9200;
+
+        let isExist = false;
+
+        for (var key in this.dialogs) {
+            let session = this.dialogs[key];
+            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId)
+                isExist = true;
+        }
+
+        //己存在会话
+        if (isExist)
+            return;
+
+
+        let sdpV = "";
+        let mValue = "RTP/AVP"
+
+        switch (Number(selectMode)) {
+            default:
+                break;
+            case 1:
+                sdpV = `a=setup:passive\r\n` +
+                    `a=connection:new\r\n`;
+                mValue = "TCP/RTP/AVP";
+                break;
+            case 2:
+                sdpV = `a=setup:active\r\n` +
+                    `a=connection:new\r\n`;
+                mValue = "TCP/RTP/AVP";
+                break;
+        }
+
+        //s=Play/Playback/Download/Talk
+        let content = `v=0\r\n` +
+            `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
+            `s=Play\r\n` +
+            `c=IN IP4 ${host}\r\n` +
+            `t=0 0\r\n` +
+            `m=video ${port} ${mValue} 96\r\n` +
+            `a=rtpmap:96 PS/90000\r\n` +
+            `a=recvonly\r\n` +
+            sdpV +
+            `y=${ssrc}\r\n`;
+
+
+        let that = this;
+
+        let options = {
+            id: channelId,
+            method: 'INVITE',
+            contentType: 'Application/sdp',
+            content: content,
+            callback: function (response) {
+                if (response.status >= 300) {
+                    //错误信息
+                    Logger.error(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+                }
+                else if (response.status < 200) {
+                    Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+                }
+                else {
+                    //判断消息类型
+                    switch (options.method) {
+                        case 'INVITE':
+
+                            //SDP
+                            if (response.content) {
+
+                                // 响应消息体
+                                let sdp = SDP.parse(response.content);
+
+                                //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
+
+                                context.nodeEvent.emit('sdpReceived', sdp);
+
+                                //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
+                                that.uas.send({
+                                    method: 'ACK',
+                                    uri: response.headers.contact[0].uri,
+                                    headers: {
+                                        to: response.headers.to,
+                                        from: response.headers.from,
+                                        'call-id': response.headers['call-id'],
+                                        cseq: { method: 'ACK', seq: response.headers.cseq.seq }
+                                    }
+                                });
+
+
+                                //会话标识
+                                let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
+
+                                //创建会话
+                                if (!that.dialogs[key]) {
+                                    // 断开会话请求
+                                    let request = {
+                                        method: 'BYE',
+                                        uri: response.headers.contact[0].uri,
+                                        headers: {
+                                            to: response.headers.to,
+                                            from: response.headers.from,
+                                            'call-id': response.headers['call-id'],
+                                            cseq: { method: 'BYE', seq: response.headers.cseq.seq + 1 }//需额外加1
+                                        }
+                                    }
+
+                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, request: request };
                                 }
                             }
                             break;
@@ -641,7 +732,7 @@ class NodeSipSession {
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
                 'content-type': options.contentType,
                 subject: options.subject,
-                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + OS.hostname() + ":" + this.config.GB28181.sipServer.listen }]
+                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + this.config.GB28181.sipServer.mapHost+ ":" + this.config.GB28181.sipServer.listen }]
             },
             content: options.content
         }

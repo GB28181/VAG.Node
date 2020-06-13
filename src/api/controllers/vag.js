@@ -11,7 +11,8 @@ function getSessions(req, res, next) {
     res.json(sessions);
 }
 
-function getSession(req, res, next) {
+//预览请求
+function realplay(req, res) {
     let result = {};
 
     if (this.sessions.has(req.params.device)) {
@@ -36,6 +37,33 @@ function getSession(req, res, next) {
     res.json(result);
 }
 
+//回看请求
+function playback(req, res) {
+    let result = {};
+
+    if (this.sessions.has(req.params.device)) {
+        let session = this.sessions.get(req.params.device);
+
+        switch (req.params.action) {
+            case 'start':
+                session.Playback(req.params.channel, req.params.begin, req.params.end, req.params.host, req.params.port, req.params.mode);
+                break;
+            case 'stop':
+                session.StopRealPlay(req.params.channel, req.params.begin, req.params.end, req.params.host, req.params.port);
+                break;
+        }
+
+        result.result = true;
+        result.message = 'OK';
+    }
+    else {
+        result.result = false;
+        result.message = 'device not online';
+    }
+    res.json(result);
+}
+
+//云台控制
 function ptzControl(req, res) {
     let result = {};
 
@@ -86,4 +114,4 @@ async function recordQuery(req, res) {
 
 
 
-module.exports = { getSession: getSession, getSessions: getSessions, ptzControl: ptzControl, recordQuery: recordQuery }
+module.exports = { realplay: realplay, getSessions: getSessions, playback: playback, ptzControl: ptzControl, recordQuery: recordQuery }
