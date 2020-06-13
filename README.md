@@ -1,5 +1,5 @@
 # VAG.Node
-GB28181 Nodejs ，主要应用将GB28181摄像机(暂只支持IPC,NVR有点小问题) 的PS流（H264/H265）打包推送到RTMP服务器发布
+GB28181 Nodejs ，主要应用将 GB28181协议 摄像机/硬盘录像机 的PS流（H264/H265）打包推送到RTMP服务器发布
 
 Run:
 
@@ -34,5 +34,9 @@ http://localhost:8001/api/v1/vag/devices/34020000001320000001/340200000013100000
 7：组合 暂不支持
 
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/ptz/0
+
+录像文件查询 ，按时间unix传值 ， 1583141099：开始时间 ，1584161099： 结束时间
+
+http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/recordQuery/1592021099/1592161099
 
 配合 RTMP 流服务器使用，推荐使用 Node-Media-Server 测试
