@@ -232,38 +232,57 @@ class NodeSipSession {
         switch (cmdtype) {
             case 'PTZCmd':
                 {
-                    let value = "A50F01011F0000D5";
 
-                    switch (cmdvalue) {
-                        //向右
+                    let cmd = Buffer.alloc(8);
+                    cmd[0] = 0xA5;//首字节以05H开头
+                    cmd[1] = 0x0F;//组合码，高4位为版本信息v1.0,版本信息0H，低四位为校验码
+                    //  校验码 = (cmd[0]的高4位+cmd[0]的低4位+cmd[1]的高4位)%16
+                    cmd[2] = 0x01;
+
+                    switch (Number(cmdvalue)) {
+                        //停止
                         case 0:
+                            cmd[3] = 0x00;
+                            break;
+                        //向右
+                        case 1:
+                            cmd[3] = 0x01;
                             break;
                         //向左
-                        case 1:
-                            value = "A50F01021F0000D6";
+                        case 2:
+                            cmd[3] = 0x02;
                             break;
                         //向下
-                        case 2:
-                            value = "A50F0104001F00D8";
+                        case 3:
+                            cmd[3] = 0x04;
                             break;
                         //向上
-                        case 3:
-                            value = "A50F0108001F00DC";
+                        case 4:
+                            cmd[3] = 0x08;
                             break;
                         //放大
-                        case 4:
-                            value = "A50F0110000010D5";
+                        case 5:
+                            cmd[3] = 0x10;
                             break;
                         //缩小
-                        case 5:
-                            value = "A50F0120000010E5";
-                            break;
-                        //停止
                         case 6:
-                            value = "A50F010H000010E5";
+                            cmd[3] = 0x20;
+                            break;
+                        //组合
+                        case 7:
+                            cmd[3] = 0x29;
                             break;
                     }
-                    json.Query.PTZCmd = value;
+
+                    let ptzSpeed = 0xff;
+
+                    cmd[4] = ptzSpeed;       //数据1,水平控制速度、聚焦速度
+                    cmd[5] = ptzSpeed;       //数据2，垂直控制速度、光圈速度
+                    cmd[6] = 0x00;           //高4位为数据3=变倍控制速度，低4位为地址高4位
+
+                    cmd[7] = (cmd[0] + cmd[1] + cmd[2] + cmd[3] + cmd[4] + cmd[5] + cmd[6]) % 256;
+
+                    json.Query.PTZCmd = this.Bytes2HexString(cmd);
                 }
                 break;
             case 'TeleBoot':
@@ -287,6 +306,18 @@ class NodeSipSession {
         };
 
         this.send(options);
+    }
+
+    Bytes2HexString = (b) => {
+        let hexs = "";
+        for (let i = 0; i < b.length; i++) {
+            let hex = (b[i]).toString(16);
+            if (hex.length === 1) {
+                hex = '0' + hex;
+            }
+            hexs += hex.toUpperCase();
+        }
+        return hexs;
     }
 
     //查询
@@ -407,7 +438,7 @@ class NodeSipSession {
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
-            `y=${ssrc}\r\n` ;
+            `y=${ssrc}\r\n`;
 
 
         let that = this;
@@ -437,7 +468,7 @@ class NodeSipSession {
                                 let sdp = SDP.parse(response.content);
 
                                 //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
-                                
+
                                 context.nodeEvent.emit('sdpReceived', sdp);
 
                                 //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程

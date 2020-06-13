@@ -42,7 +42,7 @@ async function  ptzControl(req, res) {
     if (this.sessions.has(req.params.device)) {
         let session = this.sessions.get(req.params.device);
 
-        let result = await session.PTZ(req.params.channel, "PTZCmd", req.params.value);
+        let result = await session.PTZ(req.params.channel, req.params.value);
 
         result.result = true;
         result.message = 'OK';
