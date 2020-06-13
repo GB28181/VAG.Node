@@ -1,18 +1,16 @@
-﻿
-const NodeCoreUtils = require('./node_core_utils');
+﻿const NodeCoreUtils = require('./node_core_utils');
 const context = require('./node_core_ctx');
 const Logger = require('./node_core_logger');
 const RtpPacket = require("rtp-rtcp").RtpPacket;
 
 class NodeGB28181StreamServerSession {
 
-
     constructor(config, socket) {
         this.config = config;
         this.socket = socket;
         this.id = NodeCoreUtils.generateNewSessionID();
         this.ip = socket.remoteAddress;
-        this.TAG = 'GB28181Stream';
+        this.TAG = 'GB28181_TCP_Passive';
 
         context.sessions.set(this.id, this);
     }
@@ -29,6 +27,8 @@ class NodeGB28181StreamServerSession {
 
         Logger.log(`[${this.TAG} connect] id=${this.id} ip=${this.ip} `);
 
+        this.cache = Buffer.alloc(0);
+
         if (!this.isStarting) {
             this.stop();
             return;
@@ -37,9 +37,13 @@ class NodeGB28181StreamServerSession {
 
     stop() {
         if (this.isStarting) {
+            
             this.isStarting = false;
+
             this.socket.end();
+
             Logger.log(`[${this.TAG} disconnect] id=${this.id}`);
+
             context.sessions.delete(this.id);
         }
     }
@@ -61,53 +65,32 @@ class NodeGB28181StreamServerSession {
         //国标28181的tcp码流标准遵循的是RFC4571标准
         //RFC2326标准格式： $+长度+RTP头+数据
         //RFC4571标准格式: 长度+RTP头+数据
-        NodeGB28181StreamServerSession.parseTCPRTPacket(this.id, data);
+
+        this.cache = Buffer.concat([this.cache, data]);
+
+        while (this.cache.length > 1 && this.cache.length >= (this.cache.readUInt16BE(0) + 2)) {
+
+            let rtplength = this.cache.readUInt16BE(0);
+
+            let rtpData = this.cache.slice(2, rtplength + 2);
+
+            NodeGB28181StreamServerSession.parseRTPacket(rtpData);
+
+            this.cache = this.cache.slice(rtplength + 2);
+        }
+
+        //NodeGB28181StreamServerSession.parseTCPRTPacket(this.id, data);
     }
 
+    static rtpPackets = new Map();
 
     //补位0
     static PrefixInteger(num, m) {
         return (Array(m).join(0) + num).slice(-m);
     }
 
-    //处理TCP/RTP包
-    static parseTCPRTPacket(id, cache) {
-
-        if (!this.tcpRtpPackets)
-            this.tcpRtpPackets = new Map();
-
-        if (!this.tcpRtpPackets.has(id))
-            this.tcpRtpPackets.set(id, Buffer.alloc(0));
-
-        //缓存数据
-        let rtpCache = this.tcpRtpPackets.get(id);
-
-        rtpCache = Buffer.concat([rtpCache, cache]);
-
-        let rtplength = 0;
-
-        while (rtpCache.length >= rtplength + 2) {
-
-            rtplength = rtpCache.readUInt16BE(0);
-
-            if (rtpCache.length < rtplength + 2)
-                break;
-
-            let rtpData = rtpCache.slice(2, rtplength + 2);
-
-            rtpCache = rtpCache.slice(rtplength + 2);
-
-            rtplength = 0;
-
-            this.parseRTPacket(rtpData);
-        }
-    }
-
     //处理UDP/RTP包
     static parseRTPacket(cache) {
-
-        if (!this.rtpPackets)
-            this.rtpPackets = new Map();
 
         let rtpPacket = new RtpPacket(cache);
         let ssrc = rtpPacket.getSSRC();

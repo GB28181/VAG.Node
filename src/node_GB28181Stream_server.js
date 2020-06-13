@@ -56,6 +56,7 @@ class NodeGB28181StreamServer {
             });
 
             this.udpServer.on("message", (msg, info) => {
+
                 NodeRtpSession.parseRTPacket(msg);
             });
         }
@@ -81,49 +82,48 @@ class NodeGB28181StreamServer {
 
         //判断流发送者SDP描述，如果是 TCP主动模式 则创建主动取流客户端
 
-        if (sdp.media.length > 0 && sdp.media[0].ssrc) 
-        {
+        if (sdp.media.length > 0 && sdp.media[0].ssrc) {
             let ssrc = sdp.media[0].ssrc;
 
-                let host = sdp.connection || sdp.orgin.address;
+            let host = sdp.connection.ip || sdp.origin.address;
 
-                let version = sdp.connection.version || 4; //IPV4 or IPV6
+            let version = sdp.connection.version || 4; //IPV4 or IPV6
 
-                let port = sdp.media[0].port;
+            let port = sdp.media[0].port;
 
-                let protocol = sdp.media[0].protocol;
+            let protocol = sdp.media[0].protocol;
 
-                let mode = 0;
+            let mode = 0;
 
-                switch (protocol) {
-                    //UDP
-                    case 'RTP/AVP':
-                        {
-                            mode = 0;
+            switch (protocol) {
+                //UDP
+                case 'RTP/AVP':
+                    {
+                        mode = 0;
+                    }
+                    break;
+                //TCP
+                case 'TCP/RTP/AVP':
+                    {
+                        let setup = sdp.media[0].setup;
+                        switch (setup) {
+                            //背动模式，需要创建TCP-Client 去取流
+                            case 'passive':
+                                {
+                                    mode = 2;
+                                    this.createTCPClient(ssrc, host, port);
+                                }
+                                break;
+                            //主动模式
+                            case 'active':
+                                {
+                                    mode = 1;
+                                }
+                                break;
                         }
-                        break;
-                    //TCP
-                    case 'TCP/RTP/AVP':
-                        {
-                            let setup = sdp.media[0].setup;
-                            switch (setup) {
-                                //背动模式，需要创建TCP-Client 去取流
-                                case 'passive':
-                                    {
-                                        mode = 2;
-                                        this.createTCPClient(ssrc, host, port);
-                                    }
-                                    break;
-                                //主动模式
-                                case 'active':
-                                    {
-                                        mode = 1;
-                                    }
-                                    break;
-                            }
-                        }
-                        break;
-                }
+                    }
+                    break;
+            }
         }
     }
 
@@ -132,19 +132,38 @@ class NodeGB28181StreamServer {
 
         if (!this.tcpClients[ssrc]) {
 
-            this.tcpClients[ssrc] = new Net.Socket();
+            let tcpClient = new Net.Socket();
 
-            this.tcpClients[ssrc].connect(port, host, () => { Logger.log("TCP Client 连接成功，等待接收 RTP 数据包...") });
+            this.tcpClients[ssrc] = tcpClient;
 
-            this.tcpClients[ssrc].on('data', (data) => {
-                NodeRtpSession.parseTCPRTPacket(ssrc, data);
+            tcpClient._cache = Buffer.alloc(0);
+
+            tcpClient.connect(port, host, () => { Logger.log("[GB28181_TCP_Active] 连接成功，等待接收 RTP 数据包...") });
+
+            tcpClient.on('data', (data) => {
+
+                tcpClient._cache = Buffer.concat([tcpClient._cache, data]);
+
+                while (tcpClient._cache.length > 1 && tcpClient._cache.length >= (tcpClient._cache.readUInt16BE(0) + 2)) {
+
+                    let rtplength = tcpClient._cache.readUInt16BE(0);
+
+                    let rtpData = tcpClient._cache.slice(2, rtplength + 2);
+
+                    NodeRtpSession.parseRTPacket(rtpData);
+
+                    tcpClient._cache = tcpClient._cache.slice(rtplength + 2);
+                }
             });
 
             //连接关闭
-            this.tcpClients[ssrc].on('error', (err) => {
-                this.tcpClients[ssrc].destroy();
+            tcpClient.on('error', (err) => {
+                Logger.log("[GB28181_TCP_Active] 连接关闭...") ;
+                tcpClient.destroy();
                 delete this.tcpClients[ssrc];
             });
+
+
         }
     }
 

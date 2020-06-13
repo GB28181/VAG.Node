@@ -380,7 +380,7 @@ class NodeSipSession {
         let sdpV = "";
         let mValue = "RTP/AVP"
 
-        switch (selectMode) {
+        switch (Number(selectMode)) {
             default:
                 break;
             case 1:
@@ -407,8 +407,7 @@ class NodeSipSession {
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
-            `y=${ssrc}\r\n` +
-            `f=v/2/4///a///\r\n`;
+            `y=${ssrc}\r\n` ;
 
 
         let that = this;
@@ -438,6 +437,7 @@ class NodeSipSession {
                                 let sdp = SDP.parse(response.content);
 
                                 //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
+                                
                                 context.nodeEvent.emit('sdpReceived', sdp);
 
                                 //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
@@ -451,6 +451,7 @@ class NodeSipSession {
                                         cseq: { method: 'ACK', seq: response.headers.cseq.seq }
                                     }
                                 });
+
 
                                 //会话标识
                                 let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
@@ -490,7 +491,7 @@ class NodeSipSession {
                 this.uas.send(session.request, (reqponse) => {
                     //判断媒体发送者回复,断开RTMP推流
 
-                    if (reqponse.status == 200) {
+                    if (reqponse.status == 200 || reqponse.status == 481) {
                         context.nodeEvent.emit('stopPlayed', session.ssrc);
                         delete this.dialogs[key];
                     }
