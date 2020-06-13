@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gb28181/vag.git"
+    "url": "git+https://github.com/gb28181/vag.node.git"
   },
   "keywords": [
     "gb28181",
@@ -19,9 +19,9 @@
   "author": "Yzxliu",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/gb28181/vga/issue"
+    "url": "https://github.com/gb28181/vga.node/issue"
   },
-  "homepage": "https://github.com/gb28181/vga",
+  "homepage": "https://github.com/gb28181/vga.node",
   "dependencies": {
     "basic-auth-connect": "^1.0.0",
     "chalk": "^4.1.0",
