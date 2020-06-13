@@ -1,14 +1,14 @@
 {
-  "name": "video-agent-gateway",
+  "name": "gb28181-video-agent-gateway",
   "version": "1.0.0",
-  "description": "A Node.js implementation of GB28181 Server",
+  "description": "A Node.js implementation of GB28181 Video Streaming Agent Server",
   "main": "index.js",
   "scripts": {
     "test": "node app.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yzxliu/vag.git"
+    "url": "git+https://github.com/gb28181/vag.git"
   },
   "keywords": [
     "gb28181",
@@ -19,20 +19,20 @@
   "author": "Yzxliu",
   "license": "MIT",
   "bugs": {
-    "url": "http://www.baidu.com"
+    "url": "https://github.com/gb28181/vga/issue"
   },
-  "homepage": "http://www.baidu.com",
+  "homepage": "https://github.com/gb28181/vga",
   "dependencies": {
     "basic-auth-connect": "^1.0.0",
-    "chalk": "^2.4.1",
+    "chalk": "^4.1.0",
     "dateformat": "^3.0.3",
-    "express": "^4.16.3",
-    "iconv-lite": "^0.5.1",
+    "express": "^4.17.1",
+    "iconv-lite": "^0.6.0",
     "rtp-rtcp": "0.0.2",
-    "sdp-transform": "^2.7.0",
-    "sip": "0.0.5",
-    "ws": "^5.1.1",
-    "xml2js": "^0.4.19"
+    "sdp-transform": "^2.14.0",
+    "sip": "0.0.6",
+    "ws": "^7.3.0",
+    "xml2js": "^0.4.23"
   },
   "engines": {
     "node": ">=8.0.0"
