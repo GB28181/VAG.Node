@@ -132,7 +132,9 @@ class NodeSipSession {
                 else {
                     deviceinfo = { result: false, message: content.Result, errorcode: content.ErrorCode };
                 }
-                resolve(deviceinfo)
+                resolve(deviceinfo);
+
+                return true;
             });
 
         })
@@ -141,7 +143,7 @@ class NodeSipSession {
     //设备目录
     QueryDeviceCatalog() {
         return new Promise((resolve, reject) => {
-            let catalog = {};
+            let catalog = { total: 0, devicelist: [] };
             this.Query('Catalog', (content) => {
                 if (content.Result) {
                     catalog = { result: false, message: content.Result, errorcode: content.ErrorCode };
@@ -149,11 +151,31 @@ class NodeSipSession {
                 else {
                     switch (content.CmdType) {
                         case 'Catalog':
-                            catalog = { sumNum: content.SumNum, devicelist: content.DeviceList };
+                            {
+                                if (content.SumNum)
+                                    catalog.total = Number(content.SumNum);
+
+                                if (content.DeviceList) {
+                                    if (catalog.total > 1) {
+                                        content.DeviceList.Item.forEach(device => {
+                                            catalog.devicelist.push(device);
+                                        });
+                                    }
+                                    else {
+                                        catalog.devicelist.push(content.DeviceList.Item);
+                                    }
+                                }
+                            }
                             break;
                     }
                 }
+                if (catalog.total && catalog.devicelist.Item && catalog.total != catalog.devicelist.Item.length) {
+                    return false;
+                }
+
                 resolve(catalog);
+
+                return true;
             });
         });
     }
@@ -174,6 +196,8 @@ class NodeSipSession {
                     devicestatus = { result: false, message: content.Result, errorcode: content.ErrorCode };
                 }
                 resolve(devicestatus);
+
+                return true;
             });
         });
     }
@@ -209,12 +233,12 @@ class NodeSipSession {
                         //向右
                         case 1:
                             cmd[3] = 0x01;
-                            cmd[4] = ptzSpeed; 
+                            cmd[4] = ptzSpeed;
                             break;
                         //向左
                         case 2:
                             cmd[3] = 0x02;
-                            cmd[4] = ptzSpeed; 
+                            cmd[4] = ptzSpeed;
                             break;
                         //向下
                         case 3:
@@ -505,8 +529,12 @@ class NodeSipSession {
         if (content.hasOwnProperty('Response')) {
             let id = [content.Response.CmdType, content.Response.SN].join(':');
             if (this.callbacks[id]) {
-                this.callbacks[id](content.Response);
-                delete this.callbacks[id];
+
+                //如果是查询目录消息，还需等待。
+                let result = this.callbacks[id](content.Response);
+
+                if (result)
+                    delete this.callbacks[id];
             }
         }
 
