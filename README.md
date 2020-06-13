@@ -2,6 +2,13 @@
 
 GB28181 Nodejs ，主要应用将 GB28181协议 摄像机/硬盘录像机 的PS流（H264/H265）打包推送到RTMP服务器发布
 
+国内用户可以使用下述镜像地址:
+
+```bash
+git clone https://gitee.com/GB28181/VAG.Node.git
+```
+
+## 使用
 
 Run:
 
