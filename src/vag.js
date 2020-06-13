@@ -17,6 +17,7 @@ const config = {
             ack_timeout: 30,//服务端发送ack后，接收回应的超时时间，单位为秒,如果指定时间没有回应，认为失败
         },
         streamServer: {
+            enable: true,//是否启用内置流服务 接收/转码/推送功能
             listen: 9200,//接收设备端rtp流的多路复用端口
             audio_enable: false,//是否转发音频流
             rtp_idle_timeout: 30,//rtp包空闲等待时间，如果指定时间没有收到任何包,rtp监听连接自动停止，发送BYE命令
@@ -52,5 +53,7 @@ let vagserver = new NodeHttpServer(config);
 vagserver.run();
 
 //流媒体服务
-let streamserver = new NodeSIPStremServer(config);
-streamserver.run();
+if (config.GB28181.streamServer.enable) {
+    let streamserver = new NodeSIPStremServer(config);
+    streamserver.run();
+}

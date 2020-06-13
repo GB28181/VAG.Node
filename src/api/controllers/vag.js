@@ -36,7 +36,7 @@ function getSession(req, res, next) {
     res.json(result);
 }
 
-function  ptzControl(req, res) {
+function ptzControl(req, res) {
     let result = {};
 
     if (this.sessions.has(req.params.device)) {
@@ -54,6 +54,36 @@ function  ptzControl(req, res) {
     res.json(result);
 }
 
+//录像文件查询
+async function recordQuery(req, res) {
+    let result = {};
+
+    if (this.sessions.has(req.params.device)) {
+        let session = this.sessions.get(req.params.device);
+
+        if (req.params.begin < req.params.end) {
+
+            //unix时间转换
+            var beginTime = new Date(req.params.begin * 1000).toJSON();
+            var endTime = new Date(req.params.end * 1000).toJSON();
+
+            result.data = await session.getRecordInfos(req.params.channel, beginTime, endTime);
+
+            result.result = true;
+            result.message = 'OK';
+        }
+        else {
+            result.result = false;
+            result.message = "beginTime 必须小于 endTime";
+        }
+    }
+    else {
+        result.result = false;
+        result.message = 'device not online';
+    }
+    res.json(result);
+}
 
 
-module.exports = { getSession: getSession, getSessions: getSessions, ptzControl: ptzControl }
+
+module.exports = { getSession: getSession, getSessions: getSessions, ptzControl: ptzControl, recordQuery: recordQuery }

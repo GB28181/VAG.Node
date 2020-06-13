@@ -107,6 +107,11 @@ class NodeSipSession {
         return await this.QueryDeviceStatus();
     }
 
+    //录像文件查询
+    async getRecordInfos(channelId, begin, end) {
+        return await this.QueryRecordInfo(channelId, begin, end);
+    }
+
     //云台控制
     ControlPTZ(channelid, ptzvalue) {
         this.Control(channelid, 'PTZCmd', ptzvalue);
@@ -169,7 +174,7 @@ class NodeSipSession {
                             break;
                     }
                 }
-                if (catalog.total && catalog.devicelist.Item && catalog.total != catalog.devicelist.Item.length) {
+                if (catalog.total != catalog.devicelist.length) {
                     return false;
                 }
 
@@ -202,14 +207,47 @@ class NodeSipSession {
         });
     }
 
+    //录像文件查询 
+    QueryRecordInfo(channelId, startTime, endTime) {
+        return new Promise((resolve, reject) => {
+            let recordinfos = { total: 0, recordlist: [] };
+            this.sendQueryRecordInfoMessage(channelId, startTime, endTime, (content) => {
+                switch (content.CmdType) {
+                    case 'RecordInfo'://设备状态
+                        {
+                            if (content.SumNum)
+                                recordinfos.total = Number(content.SumNum);
+
+                            if (content.RecordList) {
+                                if (recordinfos.total > 0) {
+                                    content.RecordList.Item.forEach(record => {
+                                        recordinfos.recordlist.push(record);
+                                    });
+                                }
+                            }
+                        }
+                        break;
+                }
+                
+                if (recordinfos.total != recordinfos.recordlist.length) {
+                    return false;
+                }
+
+                resolve(recordinfos);
+
+                return true;
+            });
+        });
+    }
+
     //控制 channelid 设备通道国标编码
-    Control(channelid, cmdtype, cmdvalue, callback) {
+    Control(channelId, cmdtype, cmdvalue, callback) {
         //PTZCmd/TeleBoot
         let json = {
             Query: {
                 CmdType: 'DeviceControl',
                 SN: this.sn++,
-                DeviceID: channelid
+                DeviceID: channelId
             }
         };
 
@@ -294,6 +332,7 @@ class NodeSipSession {
         this.send(options);
     }
 
+    //字节转字符串
     Bytes2HexString = (b) => {
         let hexs = "";
         for (let i = 0; i < b.length; i++) {
@@ -327,6 +366,39 @@ class NodeSipSession {
         let content = builder.buildObject(json);
 
         let options = {
+            method: 'MESSAGE',
+            contentType: 'Application/MANSCDP+xml',
+            content: content
+        };
+
+        this.send(options);
+    }
+
+    //查询通道录像文件信息
+    sendQueryRecordInfoMessage(channelId, startTime, endTime, callback) {
+        let json = {
+            Query: {
+                CmdType: 'RecordInfo',
+                SN: this.sn++,
+                DeviceID: channelId,
+                StartTime: startTime,
+                EndTime: endTime,
+                Secrecy: 0,
+                Type: 'time'
+            }
+        };
+
+        let id = [json.Query.CmdType, json.Query.SN].join(':');
+
+        if (!this.callbacks[id])
+            this.callbacks[id] = callback;
+
+        //JSON 转XML
+        let builder = new xml2js.Builder();
+        let content = builder.buildObject(json);
+
+        let options = {
+            id: channelId,
             method: 'MESSAGE',
             contentType: 'Application/MANSCDP+xml',
             content: content
