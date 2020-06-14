@@ -26,7 +26,7 @@ step 2: `node vag.js`
 + `/api/v1/vag/devices/{DeviceID}/{ChannelID}/ptz/{ControlCode}` 云台控制
 + `/api/v1/vag/devices/{DeviceID}/{ChannelID}/recordQuery/{starttime}/{endtime}` 录像文件查询<按unix时间段> .
 +  `/api/v1/vag/devices/{DeviceID}/{ChannelID}/realplay/{Action}/{MediaHost}/{MediaPort}/{streamMode}` 实时预览
-+  `/api/v1/vag/devices/{DeviceID}/{ChannelID}/playback/{Action}/{starttime}/{endtime}/{MediaHost}/{MediaPort}/{streamMode}` 录像回看/停止
++  `/api/v1/vag/devices/{DeviceID}/{ChannelID}/playback/{Action}/{starttime}/{endtime}/{MediaHost}/{MediaPort}/{streamMode}` 录像回看
 
 ControlCode： 0：停止/1：向右/2：向左/3：向下/4：向上/5：放大/6：缩小/7：组合(暂不支持)
 
@@ -51,7 +51,7 @@ streamMode ： 0:udp ,1:tcp被动,2:tcp主动
 
 1、视频播放
 
-//预览开始
+//开始预览
 
 ```bash
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/start/192.168.3.5/9200/0
@@ -73,22 +73,21 @@ http://localhost:8001/api/v1/vag/devices/34020000001320000001/340200000013100000
 
 2、 云台控制 
 
-示例：
-
 ```bash
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/ptz/0
 ```
 
 3、录像查询
 
- 按时间段(unix时戳)进行录像文件查询 .
-
+ 按时间段(unix时戳)进行录像文件查询.
 
 ```bash
 http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/recordQuery/1592021099/1592161099
 ```
 
-其中 ： 
+其中 ：
+
+```bash
 34020000001320000001 设备编码 
 
 34020000001310000001为通道编码
@@ -96,7 +95,7 @@ http://localhost:8001/api/v1/vag/devices/34020000001110000001/340200000013200000
 1583141099：开始时间  
 
 1584161099： 结束时间
-
+```
 
 4、录像回看/停止 
 
@@ -105,6 +104,7 @@ http://localhost:8001/api/v1/vag/devices/34020000001110000001/340200000013200000
 ```bash
 http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/playback/start/1592029748/1592161099/192.168.3.5/9200/0
 ```
+
 //停止回看
 
 ```bash
@@ -126,7 +126,6 @@ http://localhost:8001/api/v1/vag/devices/34020000001110000001/340200000013200000
 9200 : port
 
 0: streamMode 
-
 
 
 ## 更多
