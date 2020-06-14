@@ -10,7 +10,11 @@ git clone https://gitee.com/GB28181/VAG.Node.git
 
 ## 使用
 
+注意：如果需要对接的流媒体服务器具备 GB28181/PS/RTP 流处理能力的，请将配置 streamServer: { enable: true } 中,enable 设置为false,这样将不启用内置的流媒体接收转换功能
+
 Run:
+
+使用之前先npm install 或 yarn install
 
 ```bash
 node vag.js
@@ -29,6 +33,11 @@ http://localhost:8001/api/v1/vag/devices
 第二个 34020000001310000001 通道编码
 
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/start/192.168.3.5/9200/0
+输出结果：{"data":{"ssrc":"0200004754"},"result":true,"message":"OK"}
+
+说明：
+如果对接是ZLMediaKit 取ssrc转换为16进行后=0BEBD193，0BEBD193就是ZK里的流id
+
 
 //预览结束
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/stop/192.168.3.5/9200/0
