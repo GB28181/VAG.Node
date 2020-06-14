@@ -14,7 +14,11 @@ git clone https://gitee.com/GB28181/VAG.Node.git
 
 Run:
 
-使用之前先npm install 或 yarn install
+step 1:
+
+`npm install` 或 `yarn`
+
+step 2:
 
 ```bash
 node vag.js
@@ -22,30 +26,27 @@ node vag.js
 
 ## API:
 
-+ 获取所有设备/通道列表
-
-http://localhost:8001/api/v1/vag/devices
++ `/api/v1/vag/devices` 获取所有设备/通道列表
 
 ```bash
 //预览开始 192.168.3.5：GB流服务主机地址 ,9200:GB流服务收流端口 ,传输模式：0:udp ,1:tcp背动,2:tcp主动
 
 第一个 34020000001320000001 设备编码
 第二个 34020000001310000001 通道编码
-
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/start/192.168.3.5/9200/0
+
 输出结果：{"data":{"ssrc":"0200004754"},"result":true,"message":"OK"}
 
-说明：
-如果对接是ZLMediaKit 取ssrc转换为16进行后=0BEBD193，0BEBD193就是ZK里的流id
-
+说明： 如果对接是ZLMediaKit 取ssrc转换为16进行后=0BEBD193，0BEBD193就是ZK里的流id
 
 //预览结束
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/stop/192.168.3.5/9200/0
 ```
 
-+ 云台控制
++  `api/v1/vag/devices/{DeviceID}/{ChannelID}/ptz/{ControlCode}` 云台控制
 
-控制码说明：
+
+ControlCode说明：
 
 0：停止
 1：向右
@@ -58,21 +59,50 @@ http://localhost:8001/api/v1/vag/devices/34020000001320000001/340200000013100000
 
 使用注意：默认速度5，暂不支持自定义速度，点击开始后云台不会停止，直到再次请求接口发送控制码0，才会停止动作
 
+示例：
 ```bash
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/ptz/0
 ```
 
-+ 录像文件查询 ，按时间unix传值 ， 1583141099：开始时间 ，1584161099： 结束时间
++ `api/v1/vag/devices/{DeviceID}/{ChannelID}/recordQuery/{starttime}/{endtime}` 按时间段(unix时戳)进行录像文件查询 .
+
+示例：
+
+34020000001320000001 设备编码
+
+34020000001310000001 通道编码
+
+1583141099：开始时间 
+
+1584161099： 结束时间
 
 ```bash
 http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/recordQuery/1592021099/1592161099
 ```
 
-+ 录像回看/停止回看，与预览同样的套路
+
++ 录像回看/停止 `api/v1/vag/devices/{DeviceID}/{ChannelID}/playback/{Action}/{starttime}/{endtime}/{Host}/{Port}/0`
+
+
+示例：
+
+34020000001320000001 设备编码
+
+34020000001310000001 通道编码
+
+1592029748：开始时间 
+
+1592161099： 结束时间
+
+192.168.3.5: host
+
+9200 : port
+
 
 ```bash
 
 //开始回看
+
 http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/playback/start/1592029748/1592161099/192.168.3.5/9200/0
 
 //停止回看
