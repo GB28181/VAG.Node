@@ -20,7 +20,7 @@ function realplay(req, res) {
 
         switch (req.params.action) {
             case 'start':
-                session.RealPlay(req.params.channel, req.params.host, req.params.port, req.params.mode);
+                result.data = { ssrc: session.RealPlay(req.params.channel, req.params.host, req.params.port, req.params.mode) };
                 break;
             case 'stop':
                 session.StopRealPlay(req.params.channel, req.params.host, req.params.port);

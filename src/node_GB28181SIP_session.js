@@ -8,7 +8,6 @@ const context = require('./node_core_ctx');
 class NodeSipSession {
     constructor(config, session, userid, via, contact, uas) {
 
-        this.config = config;
         this.session = session;
         this.id = userid;
         this.via = via;
@@ -16,6 +15,18 @@ class NodeSipSession {
         this.sn = 0;
         this.callbacks = {};
         this.dialogs = {};
+
+        //当前域
+        this.GBDomain = config.GB28181.sipServer.realm || '3402000000';
+
+        //SIP服务通讯端口
+        this.GBServerPort = config.GB28181.sipServer.mapPort || config.GB28181.sipServer.listen;
+
+        //SIP服务主机地址
+        this.GBserverHost = config.GB28181.sipServer.mapHost || config.GB28181.sipServer.host;
+
+        //SIP服务编号
+        this.GBServerId = config.GB28181.sipServer.serial || config.GB28181.streamServer.serial;
 
         //超时
         this.pingTime = config.GB28181.sipServer.ping ? config.GB28181.sipServer.ping * 1000 : 60000;
@@ -25,6 +36,7 @@ class NodeSipSession {
 
         //最后一个保活包接收时间
         this.startTimestamp = Date.now();
+
         //丢包统计，连接3次丢包，表示对象下线
         this.lostPacketCount = 0;
 
@@ -56,15 +68,18 @@ class NodeSipSession {
         }, this.pingTime);
 
         this.isStarting = true;
+
         Logger.log(`[${this.TAG} connect] id=${this.id} ip=${this.via.host} port=${this.via.port} `);
 
         context.nodeEvent.emit('online', this.id);
 
-        //设备基本信息
+        //获取设备基本信息
         this.deviceinfo = await this.getDeviceInfo();
-        //设备状态
+
+        //获取设备状态
         this.devicestatus = await this.getDeviceStatus();
-        //目录查询
+
+        //获取设备目录
         this.catalog = await this.getCatalog();
     }
 
@@ -137,6 +152,7 @@ class NodeSipSession {
                 else {
                     deviceinfo = { result: false, message: content.Result, errorcode: content.ErrorCode };
                 }
+
                 resolve(deviceinfo);
 
                 return true;
@@ -325,7 +341,7 @@ class NodeSipSession {
 
         let options = {
             method: 'MESSAGE',
-            contentType: 'Application/MANSCDP+xml',
+            contentType: 'application/MANSCDP+xml',
             content: content
         };
 
@@ -367,7 +383,7 @@ class NodeSipSession {
 
         let options = {
             method: 'MESSAGE',
-            contentType: 'Application/MANSCDP+xml',
+            contentType: 'application/MANSCDP+xml',
             content: content
         };
 
@@ -384,7 +400,8 @@ class NodeSipSession {
                 StartTime: startTime,
                 EndTime: endTime,
                 Secrecy: 0, //保密属性 0：不保密 1:涉密
-                Type: 'all' //录像产生类型 time/alarm/manual/all
+                Type: 'all', //录像产生类型 time/alarm/manual/all
+                IndistinctQuery: 0//字段代表模糊查询，缺省为 0。 值为 0 时：不进行模糊查询。此时根据 SIP 消息中 To 头域 URI 中的 ID 值确定查询录像位置，若 ID 值为本域系统 ID 则进行中心历史记录检索，若为前端设备 ID 则进行前端设备历史记录检
             }
         };
 
@@ -400,7 +417,7 @@ class NodeSipSession {
         let options = {
             id: channelId,
             method: 'MESSAGE',
-            contentType: 'Application/MANSCDP+xml',
+            contentType: 'application/MANSCDP+xml',
             content: content
         };
 
@@ -418,12 +435,8 @@ class NodeSipSession {
         //0: udp,1:tcp/passive ,2:tcp/active
         let selectMode = mode || 0;
 
-        let ssid = channelId.substring(16, 20);
-
-        let sirialid = channelId.substring(3, 8);
-
         //回看以1开头
-        let ssrc = "1" + sirialid + ssid;
+        let ssrc = "1" + channelId.substring(3, 8) + channelId.substring(16, 20);
 
         let host = nhost || "127.0.0.1";
         let port = nport || 9200;
@@ -447,26 +460,26 @@ class NodeSipSession {
         }
 
         let content = `v=0\r\n` +
-            `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
+            `o=${this.GBServerId} 0 0 IN IP4 ${host}\r\n` +
             `s=Playback\r\n` +
+            `u=${channelId}:0\r\n` +
             `c=IN IP4 ${host}\r\n` +
-            `u=${channelId}:3\r\n` +
             `t=${begin} ${end}\r\n` +
             `m=video ${port} ${mValue} 96\r\n` +
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
-            `y=${ssrc}\r\n`;
+            `y=${ssrc}\r\n` +
+            `f=\r\n`;
+
 
         let that = this;
 
-        let xx = SDP.parse(content);
-
         let options = {
             id: channelId,
-            subject: `${channelId}:0,${this.id}:${Math.floor(Math.random() * 100)}`,
+            subject: `${channelId}:${ssrc},${this.GBServerId}:0`,
             method: 'INVITE',
-            contentType: 'Application/sdp',
+            contentType: 'application/sdp',
             content: content,
             callback: function (response) {
                 if (response.status >= 300) {
@@ -531,6 +544,8 @@ class NodeSipSession {
         };
 
         this.send(options);
+
+        return ssrc;
     }
 
 
@@ -579,7 +594,7 @@ class NodeSipSession {
 
         //s=Play/Playback/Download/Talk
         let content = `v=0\r\n` +
-            `o=${this.id} 0 0 IN IP4 ${host}\r\n` +
+            `o=${this.GBServerId} 0 0 IN IP4 ${host}\r\n` +
             `s=Play\r\n` +
             `c=IN IP4 ${host}\r\n` +
             `t=0 0\r\n` +
@@ -587,7 +602,8 @@ class NodeSipSession {
             `a=rtpmap:96 PS/90000\r\n` +
             `a=recvonly\r\n` +
             sdpV +
-            `y=${ssrc}\r\n`;
+            `y=${ssrc}\r\n` +
+            `f=\r\n`;
 
 
         let that = this;
@@ -595,7 +611,7 @@ class NodeSipSession {
         let options = {
             id: channelId,
             method: 'INVITE',
-            contentType: 'Application/sdp',
+            contentType: 'application/sdp',
             content: content,
             callback: function (response) {
                 if (response.status >= 300) {
@@ -660,6 +676,8 @@ class NodeSipSession {
         };
 
         this.send(options);
+
+        return ssrc;
     }
 
     //停止实时预览
@@ -693,7 +711,7 @@ class NodeSipSession {
             let id = [content.Response.CmdType, content.Response.SN].join(':');
             if (this.callbacks[id]) {
 
-                //如果是查询目录消息，还需等待。
+                //如果是查询有返回多条消息，还需等待。
                 let result = this.callbacks[id](content.Response);
 
                 if (result)
@@ -726,13 +744,13 @@ class NodeSipSession {
             method: options.method,
             uri: uri,
             headers: {
-                to: { uri: 'sip:' + (options.id || this.id) + '@' + this.config.GB28181.sipServer.realm },
-                from: { uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + this.config.GB28181.sipServer.realm, params: { tag: options.tag || this.getTagRandom(8) } },
+                to: { uri: 'sip:' + (options.id || this.id) + '@' + this.GBDomain },
+                from: { uri: 'sip:' + this.GBServerId + '@' + this.GBDomain, params: { tag: options.tag || this.getTagRandom(8) } },
                 'call-id': this.getCallId(),
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
                 'content-type': options.contentType,
                 subject: options.subject,
-                contact: [{ uri: 'sip:' + this.config.GB28181.sipServer.serial + '@' + this.config.GB28181.sipServer.mapHost+ ":" + this.config.GB28181.sipServer.listen }]
+                contact: [{ uri: 'sip:' + this.GBServerId + '@' + this.GBserverHost + ":" + this.GBServerPort }]
             },
             content: options.content
         }
@@ -742,7 +760,7 @@ class NodeSipSession {
 
     //
     getCallId() {
-        return Math.floor(Math.random() * 1e6).toString() + '@' + this.config.GB28181.sipServer.mapHost || "127.0.0.1";
+        return Math.floor(Math.random() * 1e6).toString() + '@' + this.GBserverHost;
     }
 
     //

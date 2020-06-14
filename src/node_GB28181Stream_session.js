@@ -1,5 +1,4 @@
-﻿const NodeCoreUtils = require('./node_core_utils');
-const context = require('./node_core_ctx');
+﻿const context = require('./node_core_ctx');
 const Logger = require('./node_core_logger');
 const RtpPacket = require("rtp-rtcp").RtpPacket;
 
@@ -8,7 +7,7 @@ class NodeGB28181StreamServerSession {
     constructor(config, socket) {
         this.config = config;
         this.socket = socket;
-        this.id = NodeCoreUtils.generateNewSessionID();
+        this.id = this.generateNewSessionID();
         this.ip = socket.remoteAddress;
         this.TAG = 'GB28181_TCP_Passive';
 
@@ -37,7 +36,7 @@ class NodeGB28181StreamServerSession {
 
     stop() {
         if (this.isStarting) {
-            
+
             this.isStarting = false;
 
             this.socket.end();
@@ -80,6 +79,19 @@ class NodeGB28181StreamServerSession {
         }
 
         //NodeGB28181StreamServerSession.parseTCPRTPacket(this.id, data);
+    }
+
+    //
+    generateNewSessionID() {
+        let sessionID = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWKYZ0123456789';
+        const numPossible = possible.length;
+        do {
+            for (let i = 0; i < 8; i++) {
+                sessionID += possible.charAt((Math.random() * numPossible) | 0);
+            }
+        } while (context.sessions.has(sessionID))
+        return sessionID;
     }
 
     static rtpPackets = new Map();
