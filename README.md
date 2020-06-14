@@ -29,6 +29,11 @@ http://localhost:8001/api/v1/vag/devices
 第二个 34020000001310000001 通道编码
 
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/start/192.168.3.5/9200/0
+输出结果：{"data":{"ssrc":"0200004754"},"result":true,"message":"OK"}
+
+说明：
+如果对接是ZLMediaKit 取ssrc转换为16进行后=0BEBD193，0BEBD193就是ZK里的流id
+
 
 //预览结束
 http://localhost:8001/api/v1/vag/devices/34020000001320000001/34020000001310000001/realplay/stop/192.168.3.5/9200/0
