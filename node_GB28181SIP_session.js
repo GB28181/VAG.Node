@@ -1,7 +1,7 @@
 const xml2js = require('xml2js');
 const OS = require('os');
 const SIP = require('./sip/sip');
-const SDP = require('sdp-transform');
+const SDP = require('./sdp/parser');
 const Logger = require('./node_core_logger');
 const context = require('./node_core_ctx');
 
@@ -429,14 +429,39 @@ class NodeSipSession {
 
     }
 
+    //补位0
+    _prefixInteger(num, m) {
+        return (Array(m).join(0) + num).slice(-m);
+    }
+
     //回放 begin-开始时间 end-结束时间 channelid-设备通道国标编码
     Playback(channelId, begin, end, nhost, nport, mode) {
+
+
+        let isFinded = false;
+        let findssrc = '';
+
+        for (var key in this.dialogs) {
+            let session = this.dialogs[key];
+            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId && session.play === 'playback' && session.begin == begin && session.end == end) {
+                isFinded = true;
+                findssrc = session.ssrc;
+            }
+        }
+
+        if (isFinded)
+            return findssrc;
 
         //0: udp,1:tcp/passive ,2:tcp/active
         let selectMode = mode || 0;
 
-        //回看以1开头
-        let ssrc = "1" + channelId.substring(3, 8) + channelId.substring(16, 20);
+        //产生1-9999随机数
+        let random = Math.floor(Math.random() * 9999);
+
+        let streamId = this._prefixInteger(random, 4);
+
+        //回看以1开头,同一个通道编码可能存在许多不同时间段的请求，所以ssrc后四位要处理一下，不能用通道编码了
+        let ssrc = "1" + channelId.substring(3, 8) + streamId;
 
         let host = nhost || "127.0.0.1";
         let port = nport || 9200;
@@ -499,7 +524,7 @@ class NodeSipSession {
 
                                 // 响应消息体
                                 let sdp = SDP.parse(response.content);
-
+                                Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc}  sdp=${sdp}`);
                                 //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
 
                                 context.nodeEvent.emit('sdpReceived', sdp);
@@ -534,7 +559,7 @@ class NodeSipSession {
                                         }
                                     }
 
-                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, request: request };
+                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, begin: begin, end: end, request: request, play: 'playback' };
                                 }
                             }
                             break;
@@ -552,6 +577,22 @@ class NodeSipSession {
     //预览 channelid 通道国标编码
     RealPlay(channelId, rhost, rport, mode) {
 
+        let isFinded = false;
+
+        let findssrc = "";
+
+        for (var key in this.dialogs) {
+            let session = this.dialogs[key];
+            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId && session.play === 'realplay') {
+                isFinded = true;
+                findssrc = session.ssrc;
+            }
+        }
+
+        //己存在会话,同一个流媒体不需要重复请求
+        if (isFinded)
+            return findssrc;
+
         //0: udp,1:tcp/passive ,2:tcp/active
         let selectMode = mode || 0;
 
@@ -560,19 +601,6 @@ class NodeSipSession {
         let host = rhost || "127.0.0.1";
 
         let port = rport || 9200;
-
-        let isExist = false;
-
-        for (var key in this.dialogs) {
-            let session = this.dialogs[key];
-            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId)
-                isExist = true;
-        }
-
-        //己存在会话
-        if (isExist)
-            return;
-
 
         let sdpV = "";
         let mValue = "RTP/AVP"
@@ -629,8 +657,9 @@ class NodeSipSession {
                             //SDP
                             if (response.content) {
 
-                                // 响应消息体
+                                //响应消息体
                                 let sdp = SDP.parse(response.content);
+                                Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc}  sdp=${sdp}`);
 
                                 //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
 
@@ -666,7 +695,7 @@ class NodeSipSession {
                                         }
                                     }
 
-                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, request: request };
+                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, request: request, play: 'realplay' };
                                 }
                             }
                             break;
@@ -681,14 +710,30 @@ class NodeSipSession {
     }
 
     //停止实时预览
-    StopRealPlay(channelid, rhost, rport) {
+    StopRealPlay(channelId, rhost, rport) {
         for (var key in this.dialogs) {
             //搜索满足条件的会话
             let session = this.dialogs[key];
-            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelid) {
+            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId && session.play === 'realplay') {
                 this.uas.send(session.request, (reqponse) => {
                     //判断媒体发送者回复,断开RTMP推流
+                    if (reqponse.status == 200 || reqponse.status == 481) {
+                        context.nodeEvent.emit('stopPlayed', session.ssrc);
+                        delete this.dialogs[key];
+                    }
+                });
+            }
+        }
+    }
 
+    //停止录像回看
+    StopPlayBack(channelId, begin, end, nhost, nport) {
+        for (var key in this.dialogs) {
+            //搜索满足条件的会话
+            let session = this.dialogs[key];
+            if (session.request && session.begin == begin && session.end == end && session.port === nport && session.host === nhost && session.channelid === channelId && session.play === 'playback') {
+                this.uas.send(session.request, (reqponse) => {
+                    //判断媒体发送者回复,断开RTMP推流
                     if (reqponse.status == 200 || reqponse.status == 481) {
                         context.nodeEvent.emit('stopPlayed', session.ssrc);
                         delete this.dialogs[key];

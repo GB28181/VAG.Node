@@ -5,7 +5,6 @@ function getSessions(req, res, next) {
     this.sessions.forEach(function (session, id) {
         if (session.TAG === 'sip')
             sessions[session.id] = { host: session.via.host, port: session.via.port, info: session.deviceinfo, status: session.devicestatus, catalog: session.catalog };
-
     });
 
     res.json(sessions);
@@ -16,23 +15,36 @@ function realplay(req, res) {
     let result = {};
 
     if (this.sessions.has(req.params.device)) {
+
         let session = this.sessions.get(req.params.device);
 
-        switch (req.params.action) {
-            case 'start':
-                result.data = { ssrc: session.RealPlay(req.params.channel, req.params.host, req.params.port, req.params.mode) };
-                break;
-            case 'stop':
-                session.StopRealPlay(req.params.channel, req.params.host, req.params.port);
-                break;
-        }
+        //判断当前设备通道里是否存在通道编码
+        let channelId = req.params.channel;
 
-        result.result = true;
-        result.message = 'OK';
+        let channel = session.catalog.devicelist.find(t => t.DeviceID === channelId);
+
+        if (channel) {
+            switch (req.params.action) {
+                case 'start':
+                    result.data = { ssrc: session.RealPlay(channelId, req.params.host, req.params.port, req.params.mode) };
+                    break;
+                case 'stop':
+                    session.StopRealPlay(channelId, req.params.host, req.params.port);
+                    break;
+            }
+
+            //ToDo 考虑异常情况，如失败
+            result.result = true;
+            result.message = 'OK';
+        }
+        else {
+            result.result = false;
+            result.message = 'device not found.';
+        }
     }
     else {
         result.result = false;
-        result.message = 'device not online';
+        result.message = 'device not online.';
     }
     res.json(result);
 }
@@ -46,10 +58,10 @@ function playback(req, res) {
 
         switch (req.params.action) {
             case 'start':
-                session.Playback(req.params.channel, req.params.begin, req.params.end, req.params.host, req.params.port, req.params.mode);
+                result.data = { ssrc: session.Playback(req.params.channel, req.params.begin, req.params.end, req.params.host, req.params.port, req.params.mode) };
                 break;
             case 'stop':
-                session.StopRealPlay(req.params.channel, req.params.begin, req.params.end, req.params.host, req.params.port);
+                session.StopPlayBack(req.params.channel, req.params.begin, req.params.end, req.params.host, req.params.port);
                 break;
         }
 
