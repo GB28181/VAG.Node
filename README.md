@@ -10,7 +10,11 @@ git clone https://gitee.com/GB28181/VAG.Node.git
 
 ## 使用
 
+注意：如果需要对接的流媒体服务器具备 GB28181/PS/RTP 流处理能力的，请将配置 streamServer: { enable: true } 中,enable 设置为false,这样将不启用内置的流媒体接收转换功能
+
 Run:
+
+使用之前先npm install 或 yarn install
 
 ```bash
 node vag.js
