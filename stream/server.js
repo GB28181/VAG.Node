@@ -1,8 +1,8 @@
 const Net = require('net');
-const Logger = require('./core/logger');
-const NodeRtpSession = require('./GB28181Stream_session');
-const context = require('./core/ctx');
-const NodeRtmpClient = require('./core/rtmp_client');
+const Logger = require('../core/logger');
+const NodeRtpSession = require('./session');
+const context = require('../core/ctx');
+const NodeRtmpClient = require('../core/rtmp_client');
 const RtpSession = require("rtp-rtcp").RtpSession;
 
 //GB28181 媒体服务器

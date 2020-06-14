@@ -2,7 +2,7 @@ const digest = require('./sip/digest');
 const SIP = require('./sip/sip');
 const context = require('./core/ctx');
 const Logger = require('./core/logger');
-const NodeSipSession = require('./GB28181SIP_session');
+const NodeSipSession = require('./GB28181Session');
 
 //GB28181 SIP服务器
 class NodeSIPServer {

@@ -1,5 +1,5 @@
-﻿const context = require('./core/ctx');
-const Logger = require('./core/logger');
+﻿const context = require('../core/ctx');
+const Logger = require('../core/logger');
 const RtpPacket = require("rtp-rtcp").RtpPacket;
 
 class NodeGB28181StreamServerSession {
