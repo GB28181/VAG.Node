@@ -1,6 +1,6 @@
 const xml2js = require('xml2js');
 const OS = require('os');
-const SIP = require('sip');
+const SIP = require('./sip/sip');
 const SDP = require('sdp-transform');
 const Logger = require('./node_core_logger');
 const context = require('./node_core_ctx');

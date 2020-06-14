@@ -1,5 +1,5 @@
-const digest = require('sip/digest');
-const SIP = require('sip');
+const digest = require('./sip/digest');
+const SIP = require('./sip/sip');
 const context = require('./node_core_ctx');
 const Logger = require('./node_core_logger');
 const NodeSipSession = require('./node_GB28181SIP_session');
