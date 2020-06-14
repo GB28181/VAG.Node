@@ -25,8 +25,8 @@ step 2: `node vag.js`
 + `/api/v1/vag/devices` 获取设备/通道列表
 + `/api/v1/vag/devices/{DeviceID}/{ChannelID}/ptz/{ControlCode}` 云台控制
 + `/api/v1/vag/devices/{DeviceID}/{ChannelID}/recordQuery/{starttime}/{endtime}` 录像文件查询<按unix时间段> .
-+  `/api/v1/vag/devices/{DeviceID}/{ChannelID}/realplay/{Action}/{MediaHost}/{MediaPort}/{streamMode}` 实时预览
-+  `/api/v1/vag/devices/{DeviceID}/{ChannelID}/playback/{Action}/{starttime}/{endtime}/{MediaHost}/{MediaPort}/{streamMode}` 录像回看
++ `/api/v1/vag/devices/{DeviceID}/{ChannelID}/realplay/{Action}/{MediaHost}/{MediaPort}/{streamMode}` 实时预览
++ `/api/v1/vag/devices/{DeviceID}/{ChannelID}/playback/{Action}/{starttime}/{endtime}/{MediaHost}/{MediaPort}/{streamMode}` 录像回看
 
 ControlCode： 0：停止/1：向右/2：向左/3：向下/4：向上/5：放大/6：缩小/7：组合(暂不支持)
 
@@ -46,8 +46,8 @@ streamMode ： 0:udp ,1:tcp被动,2:tcp主动
 
 流媒体服务器：
 
- 192.168.3.5：媒体流接收者
- 9200: 媒体流流接收者端口
+ 192.168.3.5：媒体流接收者 MediaHost
+ 9200: 媒体流流接收者端口 MediaPort
 
 1、视频播放
 
@@ -89,11 +89,8 @@ http://localhost:8001/api/v1/vag/devices/34020000001110000001/340200000013200000
 
 ```bash
 34020000001320000001 设备编码 
-
 34020000001310000001为通道编码
-
 1583141099：开始时间  
-
 1584161099： 结束时间
 ```
 
@@ -113,20 +110,15 @@ http://localhost:8001/api/v1/vag/devices/34020000001110000001/340200000013200000
 
 其中：
 
+```bash
 34020000001320000001 设备编码 
-
 34020000001310000001为通道编码
-
 1592029748：开始时间 
-
 1592161099： 结束时间
-
-192.168.3.5: host 
-
-9200 : port
-
+192.168.3.5: MediaHost 
+9200 : MediaPort
 0: streamMode 
-
+```
 
 ## 更多
 
