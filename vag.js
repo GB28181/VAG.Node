@@ -1,6 +1,6 @@
-const NodeHttpServer = require('./node_http_server');
-const NodeSIPServer = require('./node_GB28181SIP_server');
-const NodeSIPStremServer = require('./node_GB28181Stream_server');
+const NodeAPIServer = require('./apiServer');
+const NodeGB28181Server = require('./GB28181Server');
+const NodeStreamServer = require('./stream/server');
 
 const config = {
     GB28181: {
@@ -35,8 +35,8 @@ const config = {
         },
         auth: {
             api: true,
-            api_user: 'admin',
-            api_pass: 'admin',
+            api_user: 'admin', //default admin
+            api_pass: 'admin', //default admin
             play: false,
             publish: false,
             secret: 'nodemedia2017privatekey'
@@ -45,15 +45,15 @@ const config = {
 };
 
 //信令服务
-let sipserver = new NodeSIPServer(config);
-sipserver.run();
+let vagSignalService = new NodeGB28181Server(config);
+vagSignalService.run();
 
 //网关API服务
-let vagserver = new NodeHttpServer(config);
-vagserver.run();
+let vagAPIService = new NodeAPIServer(config);
+vagAPIService.run();
 
 //流媒体服务
 if (config.GB28181.streamServer.enable) {
-    let streamserver = new NodeSIPStremServer(config);
-    streamserver.run();
+    let vagStreamService = new NodeStreamServer(config);
+    vagStreamService.run();
 }
