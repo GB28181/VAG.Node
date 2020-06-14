@@ -10,9 +10,8 @@ const Http = require('http');
 const Express = require('express');
 const basicAuth = require('basic-auth-connect');
 const HTTP_PORT = 80;
-const Logger = require('./node_core_logger');
-const context = require('./node_core_ctx');
-
+const Logger = require('./core/logger');
+const context = require('./core/ctx');
 const vagRoute = require('./api/routes/vag');
 
 class NodeHttpServer {

@@ -2,8 +2,8 @@ const xml2js = require('xml2js');
 const OS = require('os');
 const SIP = require('./sip/sip');
 const SDP = require('./sdp/parser');
-const Logger = require('./node_core_logger');
-const context = require('./node_core_ctx');
+const Logger = require('./core/logger');
+const context = require('./core/ctx');
 
 class NodeSipSession {
     constructor(config, session, userid, via, contact, uas) {

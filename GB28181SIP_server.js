@@ -1,8 +1,8 @@
 const digest = require('./sip/digest');
 const SIP = require('./sip/sip');
-const context = require('./node_core_ctx');
-const Logger = require('./node_core_logger');
-const NodeSipSession = require('./node_GB28181SIP_session');
+const context = require('./core/ctx');
+const Logger = require('./core/logger');
+const NodeSipSession = require('./GB28181SIP_session');
 
 //GB28181 SIP服务器
 class NodeSIPServer {
