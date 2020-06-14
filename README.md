@@ -10,7 +10,7 @@ git clone https://gitee.com/GB28181/VAG.Node.git
 
 ## 使用
 
-注意：如果需要对接的流媒体服务器具备 GB28181/PS/RTP 流处理能力的，请将配置 streamServer: { enable: true } 中,enable 设置为false,这样将不启用内置的流媒体接收转换功能
+注意：如果需要对接的流媒体服务器具备 GB28181/PS/RTP 流处理能力的，请将配置 streamServer: { enable: true } 中,enable 设置为false,这样将不启用内置的流媒体接收转换功能，支持SRS4.0,ZLMediaKit
 
 Run:
 
@@ -72,7 +72,11 @@ http://localhost:8001/api/v1/vag/devices/34020000001110000001/340200000013200000
 
 ```bash
 
-
+//开始回看
 http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/playback/start/1592029748/1592161099/192.168.3.5/9200/0
+
+//停止回看
+http://localhost:8001/api/v1/vag/devices/34020000001110000001/34020000001320000001/playback/stop/1592029748/1592161099/192.168.3.5/9200/0
 ```
-配合 RTMP 流服务器使用，推荐使用 Node-Media-Server 测试
+
+可以配合 RTMP 流服务器使用，RTMP 流服务 推荐使用 Node-Media-Server 进行测试
