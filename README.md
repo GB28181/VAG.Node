@@ -23,14 +23,14 @@ step 2: `node vag.js`
 ## API:
 
 + `/api/v1/vag/devices` 获取设备/通道列表
-+ `/api/v1/vag/devices/{DeviceID}/{ChannelID}/ptz/{ControlCode}` 云台控制
-+ `/api/v1/vag/devices/{DeviceID}/{ChannelID}/recordQuery/{starttime}/{endtime}` 录像文件查询<按unix时间段> .
-+ `/api/v1/vag/devices/{DeviceID}/{ChannelID}/realplay/{Action}/{MediaHost}/{MediaPort}/{streamMode}` 实时预览
-+ `/api/v1/vag/devices/{DeviceID}/{ChannelID}/playback/{Action}/{starttime}/{endtime}/{MediaHost}/{MediaPort}/{streamMode}` 录像回看
++ `/api/v1/vag/devices/{deviceID}/{channelID}/ptz/{controlCode}` 云台控制
++ `/api/v1/vag/devices/{deviceID}/{channelID}/recordQuery/{starttime}/{endtime}` 录像文件查询<按unix时间段> .
++ `/api/v1/vag/devices/{deviceID}/{channelID}/realplay/{action}/{mediaHost}/{mediaPort}/{streamMode}` 实时预览
++ `/api/v1/vag/devices/{deviceID}/{channelID}/playback/{action}/{starttime}/{endtime}/{mediaHost}/{mediaPort}/{streamMode}` 录像回看
 
-ControlCode： 0：停止/1：向右/2：向左/3：向下/4：向上/5：放大/6：缩小/7：组合(暂不支持)
+controlCode： 0：停止/1：向右/2：向左/3：向下/4：向上/5：放大/6：缩小/7：组合(暂不支持)
 
-Action :start/stop
+action :start/stop
 
 streamMode ： 0:udp ,1:tcp被动,2:tcp主动
 
