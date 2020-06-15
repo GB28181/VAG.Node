@@ -349,7 +349,7 @@ class NodeSipSession {
     }
 
     //字节转字符串
-    Bytes2HexString = (b) => {
+    Bytes2HexString(b) {
         let hexs = "";
         for (let i = 0; i < b.length; i++) {
             let hex = (b[i]).toString(16);

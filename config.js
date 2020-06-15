@@ -1,4 +1,4 @@
-export const config = {
+var config = module.exports = {
     GB28181: {
         sipServer: {
             ping: 60,//心跳周期（秒）
