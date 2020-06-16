@@ -2,8 +2,8 @@ const xml2js = require('xml2js');
 const OS = require('os');
 const SIP = require('./sip/sip');
 const SDP = require('./sdp/parser');
-const Logger = require('./node_core_logger');
-const context = require('./node_core_ctx');
+const Logger = require('./core/logger');
+const context = require('./core/ctx');
 
 class NodeSipSession {
     constructor(config, session, userid, via, contact, uas) {
@@ -346,7 +346,7 @@ class NodeSipSession {
     }
 
     //字节转字符串
-    Bytes2HexString = (b) => {
+    Bytes2HexString(b) {
         let hexs = "";
         for (let i = 0; i < b.length; i++) {
             let hex = (b[i]).toString(16);

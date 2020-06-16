@@ -11,10 +11,9 @@ const Express = require('express');
 const bodyParser = require("body-parser");
 const basicAuth = require('basic-auth-connect');
 const HTTP_PORT = 80;
-const Logger = require('./node_core_logger');
-const context = require('./node_core_ctx');
-
-const vagRoute = require('./api/routes/vag');
+const Logger = require('../core/logger');
+const context = require('../core/ctx');
+const vagRoute = require('./routes/vag');
 
 class NodeHttpServer {
   constructor(config) {

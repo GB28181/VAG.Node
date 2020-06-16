@@ -1,5 +1,5 @@
-﻿const context = require('./node_core_ctx');
-const Logger = require('./node_core_logger');
+﻿const context = require('../core/ctx');
+const Logger = require('../core/logger');
 const RtpPacket = require("rtp-rtcp").RtpPacket;
 
 class NodeGB28181StreamServerSession {
@@ -94,8 +94,6 @@ class NodeGB28181StreamServerSession {
         return sessionID;
     }
 
-    static rtpPackets = new Map();
-
     //补位0
     static PrefixInteger(num, m) {
         return (Array(m).join(0) + num).slice(-m);
@@ -110,6 +108,9 @@ class NodeGB28181StreamServerSession {
         let playloadType = rtpPacket.getPayloadType();
         let timestamp = rtpPacket.getTimestamp();
         let playload = rtpPacket.getPayload();
+
+        if (!this.rtpPackets)
+            this.rtpPackets = new Map();
 
         if (!this.rtpPackets.has(ssrc))
             this.rtpPackets.set(ssrc, new Map());
