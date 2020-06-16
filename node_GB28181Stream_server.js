@@ -56,7 +56,6 @@ class NodeGB28181StreamServer {
             });
 
             this.udpServer.on("message", (msg, info) => {
-
                 NodeRtpSession.parseRTPacket(msg);
             });
         }

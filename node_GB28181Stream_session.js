@@ -111,13 +111,12 @@ class NodeGB28181StreamServerSession {
         let timestamp = rtpPacket.getTimestamp();
         let playload = rtpPacket.getPayload();
 
-
         if (!this.rtpPackets.has(ssrc))
             this.rtpPackets.set(ssrc, new Map());
 
         let session = this.rtpPackets.get(ssrc);
 
-        Logger.log(`RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} length:${playload.length} `);
+        Logger.log(`[${ssrc}] RTP Packet: timestamp:${timestamp} seqNumber:${seqNumber} length:${playload.length} `);
 
         switch (playloadType) {
             //PS封装

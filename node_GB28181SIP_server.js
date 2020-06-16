@@ -53,7 +53,11 @@ class NodeSIPServer {
 
         //处理消息
         context.nodeEvent.on('message', (request) => {
+
+            this.uas.send(SIP.makeResponse(request, 200, 'Ok'));
+
             let userid = SIP.parseUri(request.headers.from.uri).user;
+            //处理消息
             if (context.sessions.has(userid)) {
                 let session = context.sessions.get(userid);
                 session.onMessage(request);
@@ -80,7 +84,7 @@ class NodeSIPServer {
 
         //判断是否携带鉴权字段
         if (!request.headers.authorization || !digest.authenticateRequest(this.userinfo[userid], request, { user: userid, password: this.defaultPassword })) {
-            Logger.log(`[sip auth failed] id=${userid} ip=${request.headers.via[0].host} port=${request.headers.via[0].port} `);
+            Logger.log(`[${userid}] Auth ip=${request.headers.via[0].host} port=${request.headers.via[0].port} `);
             this.uas.send(digest.challenge(this.userinfo[userid], SIP.makeResponse(request, 401, 'Authentication Required')));
         }
         else {

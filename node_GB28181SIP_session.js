@@ -69,7 +69,7 @@ class NodeSipSession {
 
         this.isStarting = true;
 
-        Logger.log(`[${this.TAG} connect] id=${this.id} ip=${this.via.host} port=${this.via.port} `);
+        Logger.log(`[${this.id}] New Device Connected ip=${this.via.host} port=${this.via.port} `);
 
         context.nodeEvent.emit('online', this.id);
 
@@ -128,8 +128,8 @@ class NodeSipSession {
     }
 
     //云台控制
-    ControlPTZ(channelid, ptzvalue) {
-        this.Control(channelid, 'PTZCmd', ptzvalue);
+    ControlPTZ(channelId, ptzvalue) {
+        this.Control(channelId, 'PTZCmd', ptzvalue);
     }
 
     //重启
@@ -157,8 +157,7 @@ class NodeSipSession {
 
                 return true;
             });
-
-        })
+        });
     }
 
     //设备目录
@@ -190,9 +189,8 @@ class NodeSipSession {
                             break;
                     }
                 }
-                if (catalog.total != catalog.devicelist.length) {
+                if (catalog.total != catalog.devicelist.length)
                     return false;
-                }
 
                 resolve(catalog);
 
@@ -256,7 +254,7 @@ class NodeSipSession {
         });
     }
 
-    //控制 channelid 设备通道国标编码
+    //控制 channelId 设备通道国标编码
     Control(channelId, cmdtype, cmdvalue, callback) {
         //PTZCmd/TeleBoot
         let json = {
@@ -270,7 +268,6 @@ class NodeSipSession {
         switch (cmdtype) {
             case 'PTZCmd':
                 {
-
                     let cmd = Buffer.alloc(8);
                     cmd[0] = 0xA5;//首字节以05H开头
                     cmd[1] = 0x0F;//组合码，高4位为版本信息v1.0,版本信息0H，低四位为校验码
@@ -390,7 +387,7 @@ class NodeSipSession {
         this.send(options);
     }
 
-    //查询通道录像文件信息
+    //发送查询通道录像文件请求
     sendQueryRecordInfoMessage(channelId, startTime, endTime, callback) {
         let json = {
             Query: {
@@ -434,321 +431,478 @@ class NodeSipSession {
         return (Array(m).join(0) + num).slice(-m);
     }
 
-    //回放 begin-开始时间 end-结束时间 channelid-设备通道国标编码
-    Playback(channelId, begin, end, nhost, nport, mode) {
+    //回放 begin-开始时间 end-结束时间 channelId-设备通道国标编码
+    sendPlaybackMessage(channelId, begin, end, nhost, nport, mode) {
 
+        return new Promise((resolve, reject) => {
+            let isFinded = false;
+            let findssrc = '';
+            let result = { result: true, message: 'OK' };
 
-        let isFinded = false;
-        let findssrc = '';
-
-        for (var key in this.dialogs) {
-            let session = this.dialogs[key];
-            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId && session.play === 'playback' && session.begin == begin && session.end == end) {
-                isFinded = true;
-                findssrc = session.ssrc;
+            for (var key in this.dialogs) {
+                let session = this.dialogs[key];
+                if (session.bye && session.port === rport && session.host === rhost && session.channelId === channelId && session.play === 'playback' && session.begin == begin && session.end == end) {
+                    isFinded = true;
+                    findssrc = session.ssrc;
+                    break;
+                }
             }
-        }
 
-        if (isFinded)
-            return findssrc;
+            if (isFinded) {
+                result.data = { ssrc: findssrc };
+                resolve(result);
+                return;
+            }
+            //0: udp,1:tcp/passive ,2:tcp/active
+            let selectMode = mode || 0;
 
-        //0: udp,1:tcp/passive ,2:tcp/active
-        let selectMode = mode || 0;
+            //产生1-9999随机数
+            let random = Math.floor(Math.random() * 9999);
 
-        //产生1-9999随机数
-        let random = Math.floor(Math.random() * 9999);
+            let streamId = this._prefixInteger(random, 4);
 
-        let streamId = this._prefixInteger(random, 4);
+            //回看以1开头,同一个通道编码可能存在许多不同时间段的请求，所以ssrc后四位要处理一下，不能用通道编码了
+            let ssrc = "1" + channelId.substring(3, 8) + streamId;
 
-        //回看以1开头,同一个通道编码可能存在许多不同时间段的请求，所以ssrc后四位要处理一下，不能用通道编码了
-        let ssrc = "1" + channelId.substring(3, 8) + streamId;
+            let host = nhost || "127.0.0.1";
+            let port = nport || 9200;
 
-        let host = nhost || "127.0.0.1";
-        let port = nport || 9200;
+            let sdpV = "";
+            let mValue = "RTP/AVP"
 
-        let sdpV = "";
-        let mValue = "RTP/AVP"
+            switch (Number(selectMode)) {
+                default:
+                    break;
+                case 1:
+                    sdpV = `a=setup:passive\r\n` +
+                        `a=connection:new\r\n`;
+                    mValue = "TCP/RTP/AVP";
+                    break;
+                case 2:
+                    sdpV = `a=setup:active\r\n` +
+                        `a=connection:new\r\n`;
+                    mValue = "TCP/RTP/AVP";
+                    break;
+            }
 
-        switch (Number(selectMode)) {
-            default:
-                break;
-            case 1:
-                sdpV = `a=setup:passive\r\n` +
-                    `a=connection:new\r\n`;
-                mValue = "TCP/RTP/AVP";
-                break;
-            case 2:
-                sdpV = `a=setup:active\r\n` +
-                    `a=connection:new\r\n`;
-                mValue = "TCP/RTP/AVP";
-                break;
-        }
-
-        let content = `v=0\r\n` +
-            `o=${this.GBServerId} 0 0 IN IP4 ${host}\r\n` +
-            `s=Playback\r\n` +
-            `u=${channelId}:0\r\n` +
-            `c=IN IP4 ${host}\r\n` +
-            `t=${begin} ${end}\r\n` +
-            `m=video ${port} ${mValue} 96\r\n` +
-            `a=rtpmap:96 PS/90000\r\n` +
-            `a=recvonly\r\n` +
-            sdpV +
-            `y=${ssrc}\r\n` +
-            `f=\r\n`;
-
-
-        let that = this;
-
-        let options = {
-            id: channelId,
-            subject: `${channelId}:${ssrc},${this.GBServerId}:0`,
-            method: 'INVITE',
-            contentType: 'application/sdp',
-            content: content,
-            callback: function (response) {
-                if (response.status >= 300) {
-                    //错误信息
-                    Logger.error(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
-                }
-                else if (response.status < 200) {
-                    Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
-                }
-                else {
-                    //判断消息类型
-                    switch (options.method) {
-                        case 'INVITE':
-
-                            //SDP
-                            if (response.content) {
-
-                                // 响应消息体
-                                let sdp = SDP.parse(response.content);
-                                Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc}  sdp=${sdp}`);
-                                //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
-
-                                context.nodeEvent.emit('sdpReceived', sdp);
-
-                                //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
-                                that.uas.send({
-                                    method: 'ACK',
-                                    uri: response.headers.contact[0].uri,
-                                    headers: {
-                                        to: response.headers.to,
-                                        from: response.headers.from,
-                                        'call-id': response.headers['call-id'],
-                                        cseq: { method: 'ACK', seq: response.headers.cseq.seq }
-                                    }
-                                });
+            let content = `v=0\r\n` +
+                `o=${this.GBServerId} 0 0 IN IP4 ${host}\r\n` +
+                `s=Playback\r\n` +
+                `u=${channelId}:0\r\n` +
+                `c=IN IP4 ${host}\r\n` +
+                `t=${begin} ${end}\r\n` +
+                `m=video ${port} ${mValue} 96\r\n` +
+                `a=rtpmap:96 PS/90000\r\n` +
+                `a=recvonly\r\n` +
+                sdpV +
+                `y=${ssrc}\r\n` +
+                `f=v/2/4///a///\r\n`;
 
 
-                                //会话标识
-                                let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
+            let that = this;
 
-                                //创建会话
-                                if (!that.dialogs[key]) {
-                                    // 断开会话请求
-                                    let request = {
-                                        method: 'BYE',
+            let options = {
+                id: channelId,
+                subject: `${channelId}:${ssrc},${this.GBServerId}:0`,
+                method: 'INVITE',
+                contentType: 'application/sdp',
+                content: content,
+                callback: function (response) {
+                    if (response.status >= 300) {
+                        //错误信息
+                        Logger.error(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+
+                        result.result = false;
+                        result.data = { status: response.status };
+                        result.message = `ErrorCode=${response.status}`;
+
+                        resolve(result);
+                    }
+                    else if (response.status < 200) {
+                        Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+                    }
+                    else {
+                        //判断消息类型
+                        switch (options.method) {
+                            case 'INVITE':
+                                //SDP
+                                if (response.content) {
+                                    // 响应消息体
+                                    let sdp = SDP.parse(response.content);
+                                    Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc}  sdp=${sdp}`);
+                                    //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
+
+                                    context.nodeEvent.emit('sdpReceived', sdp);
+
+                                    //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
+                                    that.uas.send({
+                                        method: 'ACK',
                                         uri: response.headers.contact[0].uri,
                                         headers: {
                                             to: response.headers.to,
                                             from: response.headers.from,
                                             'call-id': response.headers['call-id'],
-                                            cseq: { method: 'BYE', seq: response.headers.cseq.seq + 1 }//需额外加1
+                                            cseq: { method: 'ACK', seq: response.headers.cseq.seq }
                                         }
+                                    });
+
+
+                                    //会话标识
+                                    let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
+
+                                    //创建会话
+                                    if (!that.dialogs[key]) {
+                                        // 断开会话请求
+                                        let byeRequest = {
+                                            method: 'BYE',
+                                            uri: response.headers.contact[0].uri,
+                                            headers: {
+                                                to: response.headers.to,
+                                                from: response.headers.from,
+                                                'call-id': response.headers['call-id'],
+                                                cseq: { method: 'BYE', seq: response.headers.cseq.seq++ }//需额外加1
+                                            }
+                                        }
+
+                                        that.dialogs[key] = { channelId: channelId, ssrc: ssrc, host: host, port: port, begin: begin, end: end, bye: byeRequest, play: 'playback' };
                                     }
 
-                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, begin: begin, end: end, request: request, play: 'playback' };
+                                    result.data = { ssrc: ssrc };
+
+                                    resolve(result);
                                 }
-                            }
-                            break;
+                                break;
+                        }
                     }
                 }
-            }
-        };
+            };
 
-        this.send(options);
-
-        return ssrc;
+            this.send(options);
+        });
     }
 
+    //回看播放控制
+    sendPlayControlMessage(channelId, begin, end, cmd, value) {
 
-    //预览 channelid 通道国标编码
-    RealPlay(channelId, rhost, rport, mode) {
+        return new Promise((resolve, reject) => {
+            let result = { result: false, message: 'OK' };
+            //PLAY/PAUSE/TEARDOWN
 
-        let isFinded = false;
+            //播放速度，其中 1 为正常
+            let scale = ['0.25', '0.5', '1.0', '2.0', '4.0', '-0.25', '-0.5', '-1.0', '-2.0', '-4.0'];
+            //播放/倍速播放/暂停/停止
+            let method = ['PLAY', 'PLAY', 'PAUSE', 'TEARDOWN'];
 
-        let findssrc = "";
+            let findSession = null;
 
-        for (var key in this.dialogs) {
-            let session = this.dialogs[key];
-            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId && session.play === 'realplay') {
-                isFinded = true;
-                findssrc = session.ssrc;
+            for (var key in this.dialogs) {
+                let session = this.dialogs[key];
+                if (session.bye && session.channelId === channelId && session.play === 'playback' && session.begin == begin && session.end == end) {
+                    findSession = session;
+                    break;
+                }
             }
-        }
 
-        //己存在会话,同一个流媒体不需要重复请求
-        if (isFinded)
-            return findssrc;
+            if (findSession == null) {
+                result.message = 'dialog not found.';
+                resolve(result);
+                return;
+            }
 
-        //0: udp,1:tcp/passive ,2:tcp/active
-        let selectMode = mode || 0;
+            //引用参数
+            var request = SIP.copyMessage(findSession.bye);
 
-        let ssrc = "0" + channelId.substring(16, 20) + channelId.substring(3, 8);
+            let findssrc = findSession.ssrc;
 
-        let host = rhost || "127.0.0.1";
+            if (!findSession.cseq) {
+                findSession.cseq = 1;
+            }
+            else {
+                findSession.cseq++;
+            }
 
-        let port = rport || 9200;
+            if (request && findssrc) {
 
-        let sdpV = "";
-        let mValue = "RTP/AVP"
+                request.method = 'INFO';
+                request['content-type'] = 'application/MANSRTSP';
+                request.headers.cseq.method = 'Info';
+                request.headers.cseq.seq = Math.floor(Math.random() * 100);
+                request.headers.contact = [{ uri: 'sip:' + this.GBServerId + '@' + this.GBserverHost + ':' + this.GBServerPort }];
+                switch (Number(cmd)) {
+                    //播放/随机播放
+                    case 0:
+                        {
+                            request.content = "PLAY MANSRTSP/1.0\r\n" +
+                                `CSeq:${findSession.cseq}\r\n` +
+                                `Range:npt=${(value || 'now-')}\r\n`;
+                        }
+                        break;
+                    //快进/慢退
+                    case 1:
+                        {
+                            //传参数如果不符合条件，用原速播放
+                            let speed = Number(value);
+                            if (speed < 0 || speed > 9) {
+                                speed = 2;
+                            }
 
-        switch (Number(selectMode)) {
-            default:
-                break;
-            case 1:
-                sdpV = `a=setup:passive\r\n` +
-                    `a=connection:new\r\n`;
-                mValue = "TCP/RTP/AVP";
-                break;
-            case 2:
-                sdpV = `a=setup:active\r\n` +
-                    `a=connection:new\r\n`;
-                mValue = "TCP/RTP/AVP";
-                break;
-        }
-
-        //s=Play/Playback/Download/Talk
-        let content = `v=0\r\n` +
-            `o=${this.GBServerId} 0 0 IN IP4 ${host}\r\n` +
-            `s=Play\r\n` +
-            `c=IN IP4 ${host}\r\n` +
-            `t=0 0\r\n` +
-            `m=video ${port} ${mValue} 96\r\n` +
-            `a=rtpmap:96 PS/90000\r\n` +
-            `a=recvonly\r\n` +
-            sdpV +
-            `y=${ssrc}\r\n` +
-            `f=\r\n`;
-
-
-        let that = this;
-
-        let options = {
-            id: channelId,
-            method: 'INVITE',
-            contentType: 'application/sdp',
-            content: content,
-            callback: function (response) {
-                if (response.status >= 300) {
-                    //错误信息
-                    Logger.error(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+                            request.content = "PLAY MANSRTSP/1.0\r\n" +
+                                `CSeq:${findSession.cseq}\r\n` +
+                                `Scale:${scale[value]}\r\n`;
+                        }
+                        break;
+                    //暂停(当前位置)
+                    case 2:
+                        {
+                            request.content = "PAUSE MANSRTSP/1.0\r\n" +
+                                `CSeq:${findSession.cseq}\r\n` +
+                                `PauseTime:now\r\n`;
+                        }
+                        break;
+                    //停止
+                    case 3:
+                        {
+                            request.content = "TEARDOWN MANSRTSP/1.0\r\n" +
+                                `CSeq:${findSession.cseq}\r\n`;
+                        }
+                        break;
                 }
-                else if (response.status < 200) {
-                    Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc} status=${response.status}`);
+
+                //发送请求
+                this.uas.send(request, (response) => {
+                    //响应
+                    Logger.log(`[${this.id}] INFO ${method[cmd]} result=${response.status}`);
+
+                    if (response.status == 200) {
+                        result.result = true;
+                    }
+                    else {
+                        result.message = `ErrorCode=${response.status}`;
+                        result.data = { status: response.status };
+                    }
+
+                    resolve(result);
+                });
+            }
+        });
+    }
+
+    //预览 channelId 通道国标编码
+    sendRealPlayMessage(channelId, rhost, rport, mode) {
+
+        return new Promise((resolve, reject) => {
+
+            let result = { result: true, message: 'OK' };
+
+            let isFinded = false;
+
+            let findssrc = "";
+
+            for (var key in this.dialogs) {
+                let session = this.dialogs[key];
+                if (session.bye && session.port === rport && session.host === rhost && session.channelId === channelId && session.play === 'realplay') {
+                    isFinded = true;
+                    findssrc = session.ssrc;
+                    break;
                 }
-                else {
-                    //判断消息类型
-                    switch (options.method) {
-                        case 'INVITE':
+            }
 
-                            //SDP
-                            if (response.content) {
+            //己存在会话,同一个流媒体不需要重复请求
+            if (isFinded) {
+                result.data = { ssrc: findssrc };
+                resolve(result);
+                return;
+            }
+            //0: udp,1:tcp/passive ,2:tcp/active
+            let selectMode = mode || 0;
 
-                                //响应消息体
-                                let sdp = SDP.parse(response.content);
-                                Logger.log(`[${that.TAG}] id=${that.id} ssrc=${ssrc}  sdp=${sdp}`);
+            let ssrc = "0" + channelId.substring(16, 20) + channelId.substring(3, 8);
 
-                                //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
+            let host = rhost || "127.0.0.1";
 
-                                context.nodeEvent.emit('sdpReceived', sdp);
+            let port = rport || 9200;
 
-                                //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
-                                that.uas.send({
-                                    method: 'ACK',
-                                    uri: response.headers.contact[0].uri,
-                                    headers: {
-                                        to: response.headers.to,
-                                        from: response.headers.from,
-                                        'call-id': response.headers['call-id'],
-                                        cseq: { method: 'ACK', seq: response.headers.cseq.seq }
-                                    }
-                                });
+            let sdpV = "";
+            let mValue = "RTP/AVP"
+
+            switch (Number(selectMode)) {
+                default:
+                    break;
+                case 1:
+                    sdpV = `a=setup:passive\r\n` +
+                        `a=connection:new\r\n`;
+                    mValue = "TCP/RTP/AVP";
+                    break;
+                case 2:
+                    sdpV = `a=setup:active\r\n` +
+                        `a=connection:new\r\n`;
+                    mValue = "TCP/RTP/AVP";
+                    break;
+            }
+
+            //s=Play/Playback/Download/Talk
+            let content = `v=0\r\n` +
+                `o=${this.GBServerId} 0 0 IN IP4 ${host}\r\n` +
+                `s=Play\r\n` +
+                `c=IN IP4 ${host}\r\n` +
+                `t=0 0\r\n` +
+                `m=video ${port} ${mValue} 96\r\n` +
+                `a=rtpmap:96 PS/90000\r\n` +
+                `a=recvonly\r\n` +
+                sdpV +
+                `y=${ssrc}\r\n` +
+                `f=v/2/4///a///\r\n`;
 
 
-                                //会话标识
-                                let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
+            let that = this;
 
-                                //创建会话
-                                if (!that.dialogs[key]) {
-                                    // 断开会话请求
-                                    let request = {
-                                        method: 'BYE',
+            let options = {
+                id: channelId,
+                subject: `${channelId}:${ssrc},${this.GBServerId}:0`,
+                method: 'INVITE',
+                contentType: 'application/sdp',
+                content: content,
+                callback: function (response) {
+                    if (response.status >= 300) {
+                        //错误信息
+                        Logger.error(`[${that.id}] ssrc=${ssrc} status=${response.status}`);
+
+                        result.result = false;
+                        result.data = { status: response.status };
+                        result.message = `ErrorCode=${response.status}`;
+
+                        resolve(result);
+                    }
+                    else if (response.status < 200) {
+                        Logger.log(`[${that.id} ] ssrc=${ssrc} status=${response.status}`);
+                    }
+                    else {
+                        //判断消息类型
+                        switch (options.method) {
+                            case 'INVITE':
+
+                                //SDP
+                                if (response.content) {
+
+                                    //响应消息体
+                                    let sdp = SDP.parse(response.content);
+
+                                    Logger.log(`[${that.id}] ssrc=${ssrc} sdp=${sdp}`);
+
+                                    //Step 6 SIP服务器收到媒体流发送者返回的200OK响应后，向 媒体服务器 发送 ACK请求，请求中携带 消息5中媒体流发送者回复的200 ok响应消息体，完成与媒体服务器的invite会话建立过程
+
+                                    context.nodeEvent.emit('sdpReceived', sdp);
+
+                                    //Step 7 SIP服务器收到媒体流发送者返回200 OK响应后，向 媒体流发送者 发送 ACK请求，请求中不携带消息体，完成与媒体流发送者的invite会话建立过程
+                                    that.uas.send({
+                                        method: 'ACK',
                                         uri: response.headers.contact[0].uri,
                                         headers: {
                                             to: response.headers.to,
                                             from: response.headers.from,
                                             'call-id': response.headers['call-id'],
-                                            cseq: { method: 'BYE', seq: response.headers.cseq.seq + 1 }//需额外加1
+                                            cseq: { method: 'ACK', seq: response.headers.cseq.seq }
                                         }
+                                    });
+
+                                    //会话标识
+                                    let key = [response.headers['call-id'], response.headers.from.params.tag, response.headers.to.params.tag].join(':');
+
+                                    //创建会话
+                                    if (!that.dialogs[key]) {
+                                        // 断开会话请求
+                                        let byeRequest = {
+                                            method: 'BYE',
+                                            uri: response.headers.contact[0].uri,
+                                            headers: {
+                                                to: response.headers.to,
+                                                from: response.headers.from,
+                                                'call-id': response.headers['call-id'],
+                                                cseq: { method: 'BYE', seq: response.headers.cseq.seq++ }//需额外加1
+                                            }
+                                        }
+
+                                        that.dialogs[key] = { channelId: channelId, ssrc: ssrc, host: host, port: port, bye: byeRequest, play: 'realplay' };
                                     }
 
-                                    that.dialogs[key] = { channelid: channelId, ssrc: ssrc, host: host, port: port, request: request, play: 'realplay' };
+                                    result.data = { ssrc: ssrc };
+                                    
+                                    resolve(result);
                                 }
-                            }
-                            break;
+                                break;
+                        }
                     }
                 }
-            }
-        };
+            };
 
-        this.send(options);
-
-        return ssrc;
+            this.send(options);
+        });
     }
 
     //停止实时预览
-    StopRealPlay(channelId, rhost, rport) {
-        for (var key in this.dialogs) {
-            //搜索满足条件的会话
-            let session = this.dialogs[key];
-            if (session.request && session.port === rport && session.host === rhost && session.channelid === channelId && session.play === 'realplay') {
-                this.uas.send(session.request, (reqponse) => {
-                    //判断媒体发送者回复,断开RTMP推流
-                    if (reqponse.status == 200 || reqponse.status == 481) {
-                        context.nodeEvent.emit('stopPlayed', session.ssrc);
+    async sendStopRealPlayMessage(channelId, rhost, rport) {
+
+        return new Promise((resolve, reject) => {
+            let result = { result: false, message: 'not find dialog.' };
+
+            for (var key in this.dialogs) {
+                //搜索满足条件的会话
+                let session = this.dialogs[key];
+
+                if (session.bye && session.port === rport && session.host === rhost && session.channelId === channelId && session.play === 'realplay') {
+
+                    context.nodeEvent.emit('stopPlayed', session.ssrc);
+
+                    this.uas.send(session.bye, (response) => {
+                        Logger.log(`[${this.id}] StopRealPlay status=${response.status}`);
                         delete this.dialogs[key];
-                    }
-                });
+                    });
+
+                    result.result = true;
+                    result.message = 'OK';
+                }
             }
-        }
+
+            resolve(result);
+        });
     }
 
     //停止录像回看
-    StopPlayBack(channelId, begin, end, nhost, nport) {
+    async sendStopPlayBackMessage(channelId, begin, end, nhost, nport) {
+
+        let result = { result: false, message: 'not find dialog.' };
+
         for (var key in this.dialogs) {
             //搜索满足条件的会话
             let session = this.dialogs[key];
-            if (session.request && session.begin == begin && session.end == end && session.port === nport && session.host === nhost && session.channelid === channelId && session.play === 'playback') {
-                this.uas.send(session.request, (reqponse) => {
-                    //判断媒体发送者回复,断开RTMP推流
-                    if (reqponse.status == 200 || reqponse.status == 481) {
-                        context.nodeEvent.emit('stopPlayed', session.ssrc);
-                        delete this.dialogs[key];
-                    }
+            if (session.bye && session.begin == begin && session.end == end && session.port === nport && session.host === nhost && session.channelId === channelId && session.play === 'playback') {
+
+                //先发送停止回看命令
+                result = await this.sendPlayControlMessage(session.channelId, session.begin, session.end, 3);
+
+                context.nodeEvent.emit('stopPlayed', session.ssrc);
+
+                //发送BYE
+                this.uas.send(session.bye, (response) => {
+                    Logger.log(`[${this.id}] StopPlayback status=${response.status}`);
+                    delete this.dialogs[key];
                 });
+
+                break;
             }
         }
+
+        return result;
     }
 
     //处理 MESSAGE 
     onMessage(request) {
         let via = request.headers.via[0];
         let content = this.parseXml(request.content);
-        //网络信息
+
+        //网络信息      
         this.via = via;
+        //连接信息
         this.contact = request.headers.contact;
 
         // 回复
@@ -766,24 +920,50 @@ class NodeSipSession {
 
         // 通知
         if (content.hasOwnProperty('Notify')) {
-            Logger.log(`[${this.id}] Notify,CmdType=${content.Notify.CmdType}`);
+
+            Logger.log(`[${this.id}] Notify CmdType=${content.Notify.CmdType} SN=${content.Notify.SN} length=${request.content.length}`);
+
             switch (content.Notify.CmdType) {
                 //保活消息
                 case 'Keepalive':
-                    //更新时间
-                    this.startTimestamp = Date.now();
-                    this.lostPacketCount = 0;
+                    {
+                        //更新时间
+                        this.startTimestamp = Date.now();
+                        this.lostPacketCount = 0;
+                    }
+                    break;
+                //媒体播放完成消息
+                case 'MediaStatus':
+                    {
+                        switch (content.Notify.NotifyType) {
+                            //录像发送完毕
+                            case 121:
+                                {
+                                    let key = [request.headers['call-id'], request.headers.from.params.tag, request.headers.to.params.tag].join(':');
+
+                                    if (this.dialogs[key]) {
+                                        let session = this.dialogs[key];
+                                        if (session.bye && content.Notify.DeviceID == session.channelId) {
+                                            this.uas.send(session.bye, (reqponse) => {
+                                                if (reqponse.status == 200 || reqponse.status == 481)
+                                                    delete this.dialogs[key];
+                                            });
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+                    }
                     break;
             }
         }
-
-        this.uas.send(SIP.makeResponse(request, 200, 'Ok'));
     }
 
     //发送SIP消息
     send(options) {
         //设备国标编码+设备主机地址+通讯端口
-        let uri = 'sip:' + (options.id || this.id) + '@' + this.via.host + ':' + this.via.port;
+        let uri = 'sip:' + (options.id || this.id) + '@' + (this.via.params.received || this.via.host) + ':' + (this.via.params.
+            rport || this.via.port);
 
         let request = {
             method: options.method,
@@ -795,12 +975,19 @@ class NodeSipSession {
                 cseq: { method: options.method, seq: Math.floor(Math.random() * 1e5) },
                 'content-type': options.contentType,
                 subject: options.subject,
-                contact: [{ uri: 'sip:' + this.GBServerId + '@' + this.GBserverHost + ":" + this.GBServerPort }]
+                contact: [{ uri: 'sip:' + this.GBServerId + '@' + this.GBserverHost + ':' + this.GBServerPort }]
             },
             content: options.content
         }
 
         this.uas.send(request, options.callback);
+    }
+
+    //
+    getSN() {
+        this.sn++;
+
+        return this.sn;
     }
 
     //
