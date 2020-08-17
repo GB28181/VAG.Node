@@ -4,8 +4,7 @@ var config = module.exports = {
             ping: 60,//心跳周期（秒）
             ping_timeout: 3,//最大心跳超时次数
             expires: 3600,//注册有效期（秒）
-            host: '0.0.0.0',//本地地址
-            mapHost: '192.168.3.5',//外网IP地址
+            host: '192.168.3.5',//SIP服务器通讯IP地址,如果使用内网映射到公网IP需要设置为公网IP地址
             serial: '34020000002000000001',//SIP服务器编号
             listen: 5061,//SIP通信端口
             realm: '3402000000',//SIP服务器域

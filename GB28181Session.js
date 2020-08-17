@@ -1,17 +1,36 @@
 const xml2js = require('xml2js');
-const OS = require('os');
 const SIP = require('./sip/sip');
 const SDP = require('./sdp/parser');
 const Logger = require('./core/logger');
 const context = require('./core/ctx');
 
 class NodeSipSession {
-    constructor(config, session, userid, via, contact, uas) {
+    constructor(config, userid, remote, uas) {
 
-        this.session = session;
+        this.request = remote.request;
+
+        this.protocol = remote.info.protocol;
+
         this.id = userid;
-        this.via = via;
-        this.contact = contact;
+        //注册请求
+        if (this.request && this.request.headers) {
+
+            if (this.request.headers.via[0])
+                this.via = this.request.headers.via[0];
+
+            //过期时间 
+            if (this.request.headers.expires)
+                this.expires = this.request.headers.expires;
+        }
+
+        //主机通讯地址&端口 
+        this.host = remote.info.address;
+
+        this.port = remote.info.port;
+
+        //设备目录
+        this.catalog = { devicelist: [] };
+
         this.sn = 0;
         this.callbacks = {};
         this.dialogs = {};
@@ -94,7 +113,6 @@ class NodeSipSession {
 
             this.isStarting = false;
             context.sessions.delete(this.id);
-            delete this.session;
         }
     }
 
@@ -826,7 +844,7 @@ class NodeSipSession {
                                     }
 
                                     result.data = { ssrc: ssrc };
-                                    
+
                                     resolve(result);
                                 }
                                 break;
@@ -897,13 +915,9 @@ class NodeSipSession {
 
     //处理 MESSAGE 
     onMessage(request) {
-        let via = request.headers.via[0];
+        
         let content = this.parseXml(request.content);
 
-        //网络信息      
-        this.via = via;
-        //连接信息
-        this.contact = request.headers.contact;
 
         // 回复
         if (content.hasOwnProperty('Response')) {
@@ -962,8 +976,7 @@ class NodeSipSession {
     //发送SIP消息
     send(options) {
         //设备国标编码+设备主机地址+通讯端口
-        let uri = 'sip:' + (options.id || this.id) + '@' + (this.via.params.received || this.via.host) + ':' + (this.via.params.
-            rport || this.via.port);
+        let uri = 'sip:' + (options.id || this.id) + '@' + this.host + ':' + this.port;
 
         let request = {
             method: options.method,
