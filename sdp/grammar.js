@@ -210,7 +210,7 @@ var grammar = module.exports = {
       // a=candidate:3289912957 2 udp 1845501695 193.84.77.194 60017 typ srflx raddr 192.168.34.75 rport 60017 generation 0 network-id 3 network-cost 10
       // a=candidate:229815620 1 tcp 1518280447 192.168.150.19 60017 typ host tcptype active generation 0 network-id 3 network-cost 10
       // a=candidate:3289912957 2 tcp 1845501695 193.84.77.194 60017 typ srflx raddr 192.168.34.75 rport 60017 tcptype passive generation 0 network-id 3 network-cost 10
-      push:'candidates',
+      push: 'candidates',
       reg: /^candidate:(\S*) (\d*) (\S*) (\d*) (\S*) (\d*) typ (\S*)(?: raddr (\S*) rport (\d*))?(?: tcptype (\S*))?(?: generation (\d*))?(?: network-id (\d*))?(?: network-cost (\d*))?/,
       names: ['foundation', 'component', 'transport', 'priority', 'ip', 'port', 'type', 'raddr', 'rport', 'tcptype', 'generation', 'network-id', 'network-cost'],
       format: function (o) {
@@ -412,7 +412,7 @@ var grammar = module.exports = {
     {
       // RFC7273
       // a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:37
-      push:'tsRefClocks',
+      push: 'tsRefClocks',
       reg: /^ts-refclk:([^\s=]*)(?:=(\S*))?/,
       names: ['clksrc', 'clksrcExt'],
       format: function (o) {
@@ -422,7 +422,7 @@ var grammar = module.exports = {
     {
       // RFC7273
       // a=mediaclk:direct=963214424
-      name:'mediaClk',
+      name: 'mediaClk',
       reg: /^mediaclk:(?:id=(\S*))? *([^\s=]*)(?:=(\S*))?(?: *rate=(\d+)\/(\d+))?/,
       names: ['id', 'mediaClockName', 'mediaClockValue', 'rateNumerator', 'rateDenominator'],
       format: function (o) {
@@ -478,7 +478,6 @@ var grammar = module.exports = {
       names: ['value']
     }
   ],
-  //y=
   y: [{ name: 'ssrc' }],
 };
 

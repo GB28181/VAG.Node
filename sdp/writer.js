@@ -13,14 +13,14 @@ var format = function (formatStr) {
     var arg = args[i];
     i += 1;
     switch (x) {
-    case '%%':
-      return '%';
-    case '%s':
-      return String(arg);
-    case '%d':
-      return Number(arg);
-    case '%v':
-      return '';
+      case '%%':
+        return '%';
+      case '%s':
+        return String(arg);
+      case '%d':
+        return Number(arg);
+      case '%v':
+        return '';
     }
   });
   // NB: we discard excess arguments - they are typically undefined from makeLine
@@ -54,9 +54,9 @@ var makeLine = function (type, obj, location) {
 var defaultOuterOrder = [
   'v', 'o', 's', 'i',
   'u', 'e', 'p', 'c',
-  'b', 't', 'r', 'z', 'a'
+  'b', 't', 'r', 'z', 'a', 'y'
 ];
-var defaultInnerOrder = ['i', 'c', 'b', 'a'];
+var defaultInnerOrder = ['i', 'c', 'b', 'a', 'y'];
 
 
 module.exports = function (session, opts) {
