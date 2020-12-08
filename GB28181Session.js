@@ -276,7 +276,7 @@ class NodeSipSession {
     Control(channelId, cmdtype, cmdvalue, callback) {
         //PTZCmd/TeleBoot
         let json = {
-            Query: {
+            Control: {
                 CmdType: 'DeviceControl',
                 SN: this.sn++,
                 DeviceID: channelId
@@ -337,15 +337,15 @@ class NodeSipSession {
 
                     cmd[7] = (cmd[0] + cmd[1] + cmd[2] + cmd[3] + cmd[4] + cmd[5] + cmd[6]) % 256;
 
-                    json.Query.PTZCmd = this.Bytes2HexString(cmd);
+                    json.Control.PTZCmd = this.Bytes2HexString(cmd);
                 }
                 break;
             case 'TeleBoot':
-                json.Query.TeleBoot = cmdvalue;
+                json.Control.TeleBoot = cmdvalue;
                 break;
         }
 
-        let id = [json.Query.CmdType, json.Query.SN].join(':');
+        let id = [json.Control.CmdType, json.Control.SN].join(':');
 
         if (!this.callbacks[id])
             this.callbacks[id] = callback;
